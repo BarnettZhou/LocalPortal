@@ -397,6 +397,93 @@
             0% { left: -60%; }
             100% { left: 100%; }
         }
+
+        /* 配对码输入对话框 */
+        .auth-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .auth-overlay.hidden {
+            display: none;
+        }
+
+        .auth-container {
+            background: var(--surface);
+            padding: 32px 24px;
+            border-radius: 16px;
+            text-align: center;
+            width: 90%;
+            max-width: 320px;
+            border: 1px solid var(--border);
+        }
+
+        .auth-container h2 {
+            margin: 0 0 8px 0;
+            font-size: 20px;
+            color: var(--text);
+        }
+
+        .auth-container p {
+            margin: 0 0 24px 0;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .auth-input {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 24px;
+            letter-spacing: 8px;
+            text-align: center;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            outline: none;
+            margin-bottom: 16px;
+            font-family: monospace;
+        }
+
+        .auth-input:focus {
+            border-color: var(--primary);
+        }
+
+        .auth-btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .auth-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .auth-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .auth-error {
+            color: var(--error);
+            font-size: 13px;
+            margin-top: 12px;
+            min-height: 20px;
+        }
     </style>
 </head>
 <body>
@@ -407,6 +494,17 @@
     <div class="toast" id="toast">
         <span class="toast-icon">✓</span>
         <span class="toast-text"></span>
+    </div>
+
+    <!-- 配对码输入对话框 -->
+    <div class="auth-overlay hidden" id="authOverlay">
+        <div class="auth-container">
+            <h2>连接 Local Portal</h2>
+            <p>请输入电脑端显示的 4 位配对码</p>
+            <input type="text" class="auth-input" id="authInput" maxlength="4" placeholder="0000">
+            <button class="auth-btn" id="authBtn">连接</button>
+            <div class="auth-error" id="authError"></div>
+        </div>
     </div>
 
     <!-- 历史消息区域 -->
@@ -469,9 +567,23 @@
         const fullscreenSend = document.getElementById('fullscreenSend');
         const toast = document.getElementById('toast');
         const connectionIndicator = document.getElementById('connectionIndicator');
+        
+        // 配对码输入元素
+        const authOverlay = document.getElementById('authOverlay');
+        const authInput = document.getElementById('authInput');
+        const authBtn = document.getElementById('authBtn');
+        const authError = document.getElementById('authError');
 
         // 消息存储
         let messages = [];
+        let pairingCode = '';
+        let isAuthenticated = false;
+
+        // 从 URL 获取配对码
+        function getCodeFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('code') || '';
+        }
 
         // 连接 WebSocket
         function connect() {
@@ -484,9 +596,14 @@
             
             ws.onopen = () => {
                 console.log('WebSocket connected');
-                reconnectAttempts = 0;
-                updateConnectionStatus('connected');
-                showToast('服务已连接', 'success');
+                // 连接成功后发送配对码验证
+                const code = getCodeFromUrl();
+                if (code) {
+                    ws.send(JSON.stringify({ type: 'auth', code: code }));
+                } else {
+                    // 显示配对码输入框
+                    showAuthDialog();
+                }
             };
             
             ws.onmessage = (event) => {
@@ -497,6 +614,7 @@
             ws.onclose = () => {
                 console.log('WebSocket closed');
                 updateConnectionStatus('disconnected');
+                isAuthenticated = false;
                 
                 // 尝试重连
                 if (reconnectAttempts < maxReconnectAttempts) {
@@ -511,6 +629,34 @@
             };
         }
 
+        // 显示配对码输入对话框
+        function showAuthDialog() {
+            authOverlay.classList.remove('hidden');
+            authInput.value = '';
+            authError.textContent = '';
+            authInput.focus();
+        }
+
+        // 隐藏配对码输入对话框
+        function hideAuthDialog() {
+            authOverlay.classList.add('hidden');
+        }
+
+        // 发送配对码
+        function sendAuthCode() {
+            const code = authInput.value.trim();
+            if (code.length !== 4 || !/^\d{4}$/.test(code)) {
+                authError.textContent = '请输入 4 位数字配对码';
+                return;
+            }
+            authError.textContent = '';
+            authBtn.disabled = true;
+            authBtn.textContent = '连接中...';
+            
+            pairingCode = code;
+            ws.send(JSON.stringify({ type: 'auth', code: code }));
+        }
+
         // 更新连接状态指示器
         function updateConnectionStatus(status) {
             connectionIndicator.className = 'connection-indicator ' + status;
@@ -519,6 +665,24 @@
         // 处理服务器消息
         function handleServerMessage(data) {
             switch (data.type) {
+                case 'auth_success':
+                    // 配对码验证成功
+                    isAuthenticated = true;
+                    reconnectAttempts = 0;
+                    updateConnectionStatus('connected');
+                    hideAuthDialog();
+                    showToast('已连接', 'success');
+                    break;
+                    
+                case 'auth_failed':
+                    // 配对码验证失败
+                    isAuthenticated = false;
+                    showAuthDialog();  // 显示输入框让用户重新输入
+                    authError.textContent = data.message || '配对码错误';
+                    authBtn.disabled = false;
+                    authBtn.textContent = '连接';
+                    break;
+                    
                 case 'history':
                     // 加载历史消息（服务器返回的是倒序，需要反转）
                     messages = (data.data || []).reverse();
@@ -527,9 +691,19 @@
                     break;
                     
                 case 'new':
-                    // 新消息（来自其他客户端）
-                    messages.push(data.data);
-                    renderMessages();
+                    // 新消息（广播）
+                    // 检查是否是本地已发送的消息（通过 client_id 匹配）
+                    const existingIndex = messages.findIndex(m => m.id == data.data.client_id);
+                    if (existingIndex !== -1) {
+                        // 更新本地消息为已发送状态
+                        messages[existingIndex].id = data.data.id;
+                        messages[existingIndex].status = 'sent';
+                        renderMessages();
+                    } else {
+                        // 新消息，添加到列表
+                        messages.push(data.data);
+                        renderMessages();
+                    }
                     scrollToBottom();
                     break;
                     
@@ -542,6 +716,7 @@
                     // 服务器关闭通知
                     showToast('服务已关闭', 'error');
                     updateConnectionStatus('disconnected');
+                    isAuthenticated = false;
                     if (ws) {
                         ws.close();
                     }
@@ -721,6 +896,20 @@
             div.textContent = text;
             return div.innerHTML;
         }
+
+        // 配对码输入事件
+        authBtn.addEventListener('click', sendAuthCode);
+        
+        authInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                sendAuthCode();
+            }
+        });
+        
+        // 限制输入只能数字
+        authInput.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '').slice(0, 4);
+        });
 
         // 事件监听
         sendBtn.addEventListener('click', () => {

@@ -3,7 +3,7 @@
 import asyncio
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Set
 
 import pyperclip
 from aiohttp import web
@@ -25,6 +25,9 @@ class Server:
         
         # 终端消息队列（用于从 WebSocket 处理器传递消息到主线程）
         self.terminal_queue: asyncio.Queue = asyncio.Queue()
+        
+        # 已验证的客户端（通过配对码验证）
+        self.verified_clients: Set[web.WebSocketResponse] = set()
     
     def _setup_routes(self) -> None:
         """设置 HTTP 路由"""
@@ -42,15 +45,17 @@ class Server:
         return web.Response(text="index.html not found", status=404)
     
     async def handle_qr_page(self, request: web.Request) -> web.Response:
-        """二维码页面"""
-        lan_url = f"http://{get_local_ip()}:{self.config.port}"
-        html = generate_qr_html(lan_url)
+        """二维码页面 - 带配对码"""
+        # 生成带配对码的 URL
+        url_with_code = self.config.qr_url
+        html = generate_qr_html(url_with_code)
         return web.Response(text=html, content_type='text/html')
     
     async def handle_qr_image(self, request: web.Request) -> web.Response:
-        """二维码图片接口"""
-        lan_url = f"http://{get_local_ip()}:{self.config.port}"
-        img_buffer = generate_qr_png(lan_url)
+        """二维码图片接口 - 带配对码"""
+        # 生成带配对码的 URL
+        url_with_code = self.config.qr_url
+        img_buffer = generate_qr_png(url_with_code)
         return web.Response(body=img_buffer, content_type='image/png')
     
     async def handle_websocket(self, request: web.Request) -> web.WebSocketResponse:
@@ -58,11 +63,40 @@ class Server:
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         
-        # 注册客户端
+        # 1. 等待配对码验证
+        try:
+            # 设置超时 10 秒等待配对码
+            auth_msg = await asyncio.wait_for(ws.receive(), timeout=10.0)
+            if auth_msg.type == web.WSMsgType.TEXT:
+                data = json.loads(auth_msg.data)
+                if data.get("type") == "auth":
+                    code = data.get("code", "")
+                    if code != self.config.pairing_code:
+                        await ws.send_json({"type": "auth_failed", "message": "配对码错误"})
+                        await ws.close()
+                        return ws
+                    # 配对码正确
+                    await ws.send_json({"type": "auth_success"})
+                else:
+                    await ws.send_json({"type": "auth_failed", "message": "请先发送配对码"})
+                    await ws.close()
+                    return ws
+            else:
+                await ws.close()
+                return ws
+        except asyncio.TimeoutError:
+            await ws.close()
+            return ws
+        except json.JSONDecodeError:
+            await ws.close()
+            return ws
+        
+        # 2. 验证通过，注册客户端
         self.config.connected_clients.add(ws)
+        self.verified_clients.add(ws)
         
         try:
-            # 发送历史记录
+            # 3. 发送历史记录
             history_data = [
                 {
                     "id": e.id,
@@ -74,7 +108,7 @@ class Server:
             ]
             await ws.send_json({"type": "history", "data": history_data})
             
-            # 监听消息
+            # 4. 监听消息
             async for msg in ws:
                 if msg.type == web.WSMsgType.TEXT:
                     try:
@@ -83,20 +117,21 @@ class Server:
                             await self._handle_text_message(
                                 data.get("content", ""), 
                                 ws,
-                                data.get("client_id")  # 传递客户端临时ID
+                                data.get("client_id")
                             )
                     except json.JSONDecodeError:
                         pass
                 elif msg.type == web.WSMsgType.ERROR:
                     break
         finally:
-            # 注销客户端
+            # 5. 注销客户端
             self.config.connected_clients.discard(ws)
+            self.verified_clients.discard(ws)
         
         return ws
     
     async def _handle_text_message(self, text: str, sender: web.WebSocketResponse, client_id: str = None) -> None:
-        """处理文本消息"""
+        """处理文本消息并广播给所有已验证客户端"""
         if not text:
             return
         
@@ -107,7 +142,6 @@ class Server:
         auto_copied = False
         if self.config.auto_copy:
             try:
-                # 剪贴板操作需要在单独线程中执行
                 await asyncio.get_event_loop().run_in_executor(
                     None, pyperclip.copy, text
                 )
@@ -125,13 +159,24 @@ class Server:
             "auto_copied": auto_copied
         })
         
-        # 4. 发送确认给发送者（不广播给其他客户端 - 按需求）
-        if not sender.closed:
-            await sender.send_json({
-                "type": "ack",
-                "id": client_id or entry.id,  # 返回客户端提供的临时ID
-                "server_id": entry.id
-            })
+        # 4. 广播给所有已验证客户端（包括发送者）
+        message_data = {
+            "type": "new",
+            "data": {
+                "id": entry.id,
+                "text": entry.text,
+                "time": entry.time.isoformat(),
+                "preview": entry.preview,
+                "client_id": client_id
+            }
+        }
+        
+        for client in list(self.verified_clients):
+            if not client.closed:
+                try:
+                    await client.send_json(message_data)
+                except Exception:
+                    pass
     
     async def start(self) -> int:
         """启动服务器，返回实际使用的端口"""
@@ -146,7 +191,7 @@ class Server:
             try:
                 self.site = web.TCPSite(self.runner, self.config.host, port)
                 await self.site.start()
-                self.config.port = port  # 更新实际端口
+                self.config.port = port
                 return port
             except OSError:
                 if attempt < max_attempts - 1:
@@ -157,23 +202,20 @@ class Server:
         return port
     
     async def stop(self, force: bool = True) -> None:
-        """停止服务器
-        
-        Args:
-            force: 是否强制关闭（不等待连接优雅关闭）
-        """
+        """停止服务器"""
         # 1. 先通知所有客户端服务即将关闭
-        if self.config.connected_clients:
+        if self.verified_clients:
             close_msg = {"type": "server_close", "message": "服务已关闭"}
-            # 并发发送关闭通知
             await asyncio.gather(
-                *[client.send_json(close_msg) for client in self.config.connected_clients if not client.closed],
+                *[client.send_json(close_msg) for client in self.verified_clients if not client.closed],
                 return_exceptions=True
             )
-            # 关闭所有 WebSocket 连接
-            for client in list(self.config.connected_clients):
+            for client in list(self.verified_clients):
                 if not client.closed:
                     await client.close()
+        
+        self.verified_clients.clear()
+        self.config.connected_clients.clear()
         
         # 2. 停止 HTTP 服务
         if self.site:

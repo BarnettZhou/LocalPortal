@@ -13,20 +13,22 @@ if TYPE_CHECKING:
 console = Console()
 
 
-def print_banner(host: str, port: int, lan_ip: str) -> None:
+def print_banner(config: "ServerConfig") -> None:
     """打印启动横幅"""
     console.print()
     console.print("Local Portal 启动中...", style="bold green")
     console.print("-" * 40)
     console.print()
     console.print("服务地址:")
-    console.print(f"   本机:   http://localhost:{port}")
-    console.print(f"   局域网: http://{lan_ip}:{port}")
+    console.print(f"   本机:   {config.local_url}")
+    console.print(f"   局域网: {config.lan_url}")
     console.print()
-    console.print("提示: 使用 /qrcode 命令在浏览器中打开二维码页面，方便手机扫码")
+    console.print(f"配对码: {config.pairing_code}")
+    console.print()
+    console.print("提示: 使用 /qrcode 命令在浏览器中打开二维码页面")
     console.print()
     console.print("-" * 40)
-    console.print("可用命令: /auto, /copy, /list, /status, /open, /qrcode, /exit, /help")
+    console.print("可用命令: /auto, /copy, /list, /status, /open, /qrcode, /refresh, /exit, /help")
     console.print()
 
 
@@ -42,6 +44,11 @@ def print_status(config: "ServerConfig") -> None:
     console.print("服务地址")
     console.print(f"  本机:   {config.local_url}")
     console.print(f"  局域网: {config.lan_url}")
+    console.print()
+    
+    # 安全
+    console.print("安全")
+    console.print(f"  配对码:        {config.pairing_code}")
     console.print()
     
     # 运行状态
@@ -159,6 +166,7 @@ Local Portal 命令帮助
 /status            显示服务运行状态
 /open              在浏览器中打开主页面
 /qrcode            在浏览器中打开二维码页面
+/refresh           刷新配对码（所有客户端需重新登录）
 /help              显示此帮助信息
 /exit              退出程序
 """

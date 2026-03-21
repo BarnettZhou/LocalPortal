@@ -1,5 +1,6 @@
 """斜杠命令处理器"""
 
+import asyncio
 from typing import TYPE_CHECKING, Optional
 
 import pyperclip
@@ -47,6 +48,8 @@ class CommandHandler:
                 return self._handle_help()
             case "/exit":
                 return self._handle_exit()
+            case "/refresh":
+                return self._handle_refresh()
             case _:
                 return f"[?] 未知命令: {cmd}，输入 /help 查看可用命令"
     
@@ -122,3 +125,18 @@ class CommandHandler:
     def _handle_exit(self) -> str:
         """处理 /exit 命令"""
         raise SystemExit
+    
+    def _handle_refresh(self) -> str:
+        """处理 /refresh 命令 - 刷新配对码"""
+        old_code = self.config.pairing_code
+        new_code = self.config.refresh_pairing_code()
+        # 断开所有已验证客户端（需要重新登录）
+        for client in list(self.server.verified_clients):
+            if not client.closed:
+                asyncio.create_task(client.send_json({
+                    "type": "auth_failed",
+                    "message": "配对码已刷新，请重新登录"
+                }))
+                asyncio.create_task(client.close())
+        self.server.verified_clients.clear()
+        return f"[OK] 配对码已刷新: {old_code} -> {new_code}，所有客户端已断开"

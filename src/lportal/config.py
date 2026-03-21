@@ -1,9 +1,15 @@
 """配置状态管理"""
 
+import random
 from datetime import datetime
 
 from .history import History
 from .qr import get_local_ip
+
+
+def generate_pairing_code() -> str:
+    """生成4位数字配对码"""
+    return f"{random.randint(0, 9999):04d}"
 
 
 class ServerConfig:
@@ -23,6 +29,12 @@ class ServerConfig:
         self.start_time = datetime.now()
         self.connected_clients: set = set()
         self._history = History(self.max_history)
+        self.pairing_code: str = generate_pairing_code()
+    
+    def refresh_pairing_code(self) -> str:
+        """刷新配对码，返回新的配对码"""
+        self.pairing_code = generate_pairing_code()
+        return self.pairing_code
     
     @property
     def history(self) -> History:
@@ -37,6 +49,11 @@ class ServerConfig:
     def lan_url(self) -> str:
         """局域网访问地址"""
         return f"http://{get_local_ip()}:{self.port}"
+    
+    @property
+    def qr_url(self) -> str:
+        """带配对码的二维码地址"""
+        return f"http://{get_local_ip()}:{self.port}/?code={self.pairing_code}"
     
     @property
     def uptime(self) -> str:

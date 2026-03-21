@@ -40,8 +40,7 @@ class PortalApp:
             return
         
         # 打印横幅
-        lan_ip = get_local_ip()
-        print_banner(self.config.host, actual_port, lan_ip)
+        print_banner(self.config)
         
         # 设置信号处理（Ctrl+C）
         loop = asyncio.get_event_loop()

@@ -46,8 +46,12 @@ class History:
         return self._queue[index - 1]
     
     def list(self) -> list[MessageEntry]:
-        """获取所有历史消息（按时间倒序，最新的在前）"""
-        return list(self._queue)
+        """获取所有历史消息（按时间倒序，最新的在前，ID 重新编号为 1-N）"""
+        entries = list(self._queue)
+        # 重新编号 ID：最新的为 1，次新的为 2，以此类推
+        for new_id, entry in enumerate(entries, start=1):
+            entry.id = new_id
+        return entries
     
     def last_received_time(self) -> Optional[datetime]:
         """最后接收消息的时间"""
