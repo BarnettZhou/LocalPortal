@@ -93,3 +93,50 @@ def generate_qr_html(url: str) -> str:
 def open_browser(url: str) -> None:
     """唤起系统默认浏览器"""
     webbrowser.open(url)
+
+
+def generate_qr_ascii(url: str) -> str:
+    """生成 ASCII 艺术二维码（紧凑版）
+    
+    使用上下半块字符，两行像素合并为一行字符显示，
+    保持可扫描性的同时高度减半。
+    """
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=1,
+        border=1,
+    )
+    qr.add_data(url)
+    qr.make(fit=True)
+    
+    # 使用 Unicode 上下半块字符：
+    # ▀ 上半块 (upper half) - 上黑下白
+    # ▄ 下半块 (lower half) - 上白下黑  
+    # █ 全块 (full block) - 全黑
+    #   空格 - 全白
+    
+    lines = []
+    modules = list(qr.modules)
+    
+    # 每两行原始像素合并成一行终端字符
+    for i in range(0, len(modules), 2):
+        row1 = modules[i]  # 上行
+        row2 = modules[i + 1] if i + 1 < len(modules) else [False] * len(row1)  # 下行
+        
+        line = ''
+        for j in range(len(row1)):
+            upper = row1[j]  # 上像素
+            lower = row2[j]  # 下像素
+            
+            if upper and lower:
+                line += '█'  # 全黑
+            elif upper and not lower:
+                line += '▀'  # 上半块（上黑下白）
+            elif not upper and lower:
+                line += '▄'  # 下半块（上白下黑）
+            else:
+                line += ' '  # 全白
+        lines.append(line)
+    
+    return '\n'.join(lines)

@@ -25,10 +25,10 @@ def print_banner(config: "ServerConfig") -> None:
     console.print()
     console.print(f"配对码: {config.pairing_code}")
     console.print()
-    console.print("提示: 使用 /qrcode 命令在浏览器中打开二维码页面")
+    console.print("提示: 使用 /qr 命令显示二维码")
     console.print()
     console.print("-" * 40)
-    console.print("可用命令: /auto, /copy, /list, /status, /open, /qrcode, /refresh, /exit, /help")
+    console.print("可用命令: /auto, /copy, /list, /status, /open, /qr, /refresh, /exit, /help")
     console.print()
 
 
@@ -147,13 +147,12 @@ def print_message(msg: str, style: str = "") -> None:
 
 
 def print_new_message(entry: "MessageEntry", auto_copied: bool = False) -> None:
-    """打印新消息通知 - 使用纯文本避免样式问题，限制10个全角字符"""
+    """打印新消息通知 - 单行显示，限制10个全角字符"""
     time_str = entry.time.strftime("%H:%M:%S")
     status = " [auto]" if auto_copied else ""
-    print(f"[{time_str}] 收到消息{status}")
     # 限制10个全角字符（20个半角）
     preview = _truncate_text(entry.text, 20)
-    print(f"  -> {preview}")
+    print(f"[{time_str}] 收到消息{status}: {preview}")
 
 
 def print_help() -> str:
@@ -163,10 +162,10 @@ Local Portal 命令帮助
 
 /auto [on|off]     开启/关闭自动复制模式
 /copy [N]          复制历史消息（N=1-10，无参=最近一条）
-/list              列出最近10条消息摘要
+/list (/ls)        列出最近10条消息摘要
 /status            显示服务运行状态
 /open              在浏览器中打开主页面
-/qrcode            在浏览器中打开二维码页面
+/qrcode (/qr)      显示二维码（扫码连接）
 /refresh           刷新配对码（所有客户端需重新登录）
 /help              显示此帮助信息
 /exit              退出程序

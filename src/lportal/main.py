@@ -10,7 +10,7 @@ from prompt_toolkit.patch_stdout import patch_stdout
 
 from .commands import CommandHandler
 from .config import ServerConfig
-from .qr import get_local_ip
+from .qr import get_local_ip, generate_qr_ascii
 from .server import Server
 from .ui import print_banner, print_message, print_new_message
 
@@ -39,8 +39,17 @@ class PortalApp:
             print_message(f"[ERROR] 启动失败: {e}", style="bold red")
             return
         
-        # 打印横幅
+        # 打印横幅和二维码
         print_banner(self.config)
+        
+        # 首次启动显示二维码
+        qr_url = self.config.qr_url
+        qr_ascii = generate_qr_ascii(qr_url)
+        print_message("手机扫描二维码连接：")
+        print_message(qr_ascii)
+        print_message(f"配对码: {self.config.pairing_code}")
+        print_message(f"地址: {qr_url}")
+        print_message("")
         
         # 设置信号处理（Ctrl+C）
         loop = asyncio.get_event_loop()

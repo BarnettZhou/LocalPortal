@@ -36,13 +36,13 @@ class CommandHandler:
                 return self._handle_auto(args)
             case "/copy":
                 return self._handle_copy(args)
-            case "/list":
+            case "/list" | "/ls":
                 return self._handle_list()
             case "/status":
                 return self._handle_status()
             case "/open":
                 return self._handle_open()
-            case "/qrcode":
+            case "/qrcode" | "/qr":
                 return self._handle_qrcode()
             case "/help":
                 return self._handle_help()
@@ -112,11 +112,30 @@ class CommandHandler:
         return f"[OK] 已在浏览器中打开 {url}"
     
     def _handle_qrcode(self) -> str:
-        """处理 /qrcode 命令"""
-        from .qr import open_browser
-        url = f"{self.config.local_url}/qr"
-        open_browser(url)
-        return "[OK] 已打开浏览器，请扫码访问"
+        """处理 /qrcode 命令 - 在终端显示 ASCII 二维码"""
+        from .qr import generate_qr_ascii
+        
+        url = self.config.qr_url
+        pairing_code = self.config.pairing_code
+        
+        # 生成 ASCII 二维码
+        qr_ascii = generate_qr_ascii(url)
+        
+        # 构建输出
+        lines = [
+            "",
+            "=" * 50,
+            "手机扫描二维码或访问以下地址：",
+            "",
+            qr_ascii,
+            "",
+            f"配对码: {pairing_code}",
+            f"地址: {url}",
+            "=" * 50,
+            "",
+        ]
+        
+        return "\n".join(lines)
     
     def _handle_help(self) -> str:
         """处理 /help 命令"""

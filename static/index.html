@@ -190,6 +190,11 @@
             display: flex;
             gap: 12px;
             align-items: flex-end;
+            z-index: 100;
+            /* 修复 iOS 键盘弹出时滚动问题 */
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+            will-change: transform;
         }
 
         .input-wrapper {
@@ -586,19 +591,19 @@
             return params.get('code') || '';
         }
 
-        // 从 sessionStorage 获取配对码
+        // 从 localStorage 获取配对码（改用持久化存储，避免后台挂起丢失）
         function getCodeFromStorage() {
             try {
-                return sessionStorage.getItem('lportal_code') || '';
+                return localStorage.getItem('lportal_code') || '';
             } catch (e) {
                 return '';
             }
         }
 
-        // 保存配对码到 sessionStorage
+        // 保存配对码到 localStorage
         function saveCodeToStorage(code) {
             try {
-                sessionStorage.setItem('lportal_code', code);
+                localStorage.setItem('lportal_code', code);
             } catch (e) {
                 // 忽略存储错误
             }
@@ -616,8 +621,9 @@
             ws.onopen = () => {
                 console.log('WebSocket connected');
                 // 连接成功后发送配对码验证
-                // 优先级：sessionStorage > URL > 输入框
-                const code = getCodeFromStorage() || getCodeFromUrl();
+                // 优先级：URL > localStorage > 输入框
+                // URL 优先：用户主动扫码进入应使用新配对码
+                const code = getCodeFromUrl() || getCodeFromStorage();
                 if (code) {
                     ws.send(JSON.stringify({ type: 'auth', code: code }));
                 } else {
@@ -674,7 +680,7 @@
             authBtn.textContent = '连接中...';
             
             pairingCode = code;
-            // 保存到 sessionStorage，便于重连时自动使用
+            // 保存到 localStorage，便于重连时自动使用
             saveCodeToStorage(code);
             ws.send(JSON.stringify({ type: 'auth', code: code }));
         }
@@ -694,7 +700,7 @@
                     updateConnectionStatus('connected');
                     hideAuthDialog();
                     showToast('已连接', 'success');
-                    // 保存当前使用的配对码到 sessionStorage，便于重连
+                    // 保存当前使用的配对码到 localStorage，便于重连
                     const currentCode = getCodeFromStorage() || getCodeFromUrl();
                     if (currentCode) {
                         saveCodeToStorage(currentCode);
@@ -982,6 +988,35 @@
                 ws.close();
             }
         });
+
+        // 监听视觉视口变化（修复 iOS 键盘弹出时输入框位置问题）
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
+                // 当键盘弹出/收起时，调整输入框位置
+                const vv = window.visualViewport;
+                const inputContainer = document.querySelector('.input-container');
+                if (inputContainer && vv) {
+                    // 计算 visual viewport 底部相对于 layout viewport 的偏移
+                    const offset = vv.height < window.innerHeight ? 
+                        window.innerHeight - vv.height : 0;
+                    inputContainer.style.transform = `translateY(-${offset}px)`;
+                }
+            });
+            
+            // 滚动时也更新位置
+            window.visualViewport.addEventListener('scroll', () => {
+                const vv = window.visualViewport;
+                const inputContainer = document.querySelector('.input-container');
+                if (inputContainer && vv) {
+                    const offset = window.innerHeight - vv.height - vv.offsetTop;
+                    if (offset > 0) {
+                        inputContainer.style.transform = `translateY(-${offset}px)`;
+                    } else {
+                        inputContainer.style.transform = '';
+                    }
+                }
+            });
+        }
 
         // 初始化连接
         connect();
