@@ -58,12 +58,49 @@ uv run lportal # 运行
 - 适合开发调试
 - 需要进入项目目录才能运行
 
-### 方式三：pip 安装
+### 方式三：pip 安装（无需 uv）
 
+如果你不想使用 uv，可以只用 Python 和 pip：
+
+**本地开发安装（可编辑模式）**：
 ```bash
+# 创建虚拟环境（推荐）
+python -m venv .venv
+
+# 激活虚拟环境
+# Windows:
+.venv\Scripts\activate
+# Linux/Mac:
+source .venv/bin/activate
+
+# 安装依赖和包
 pip install -e .
+
+# 运行
 lportal
 ```
+
+**从 PyPI 安装（发布后）**：
+```bash
+pip install lportal
+
+# 运行
+lportal
+```
+
+**本地构建 wheel 安装**：
+```bash
+# 构建 wheel 包
+python -m build
+
+# 安装生成的 wheel
+pip install dist/lportal-0.1.0-py3-none-any.whl
+
+# 运行
+lportal
+```
+
+**注意**：pip 安装不会像 uv tool 那样自动管理虚拟环境，建议手动创建虚拟环境避免依赖冲突。
 
 ## 使用
 
