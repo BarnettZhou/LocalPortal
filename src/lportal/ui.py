@@ -147,11 +147,12 @@ def print_message(msg: str, style: str = "") -> None:
 
 
 def print_new_message(entry: "MessageEntry", auto_copied: bool = False) -> None:
-    """打印新消息通知 - 使用纯文本避免样式问题"""
+    """打印新消息通知 - 使用纯文本避免样式问题，限制10个全角字符"""
     time_str = entry.time.strftime("%H:%M:%S")
     status = " [auto]" if auto_copied else ""
     print(f"[{time_str}] 收到消息{status}")
-    preview = entry.text[:60] + "..." if len(entry.text) > 60 else entry.text
+    # 限制10个全角字符（20个半角）
+    preview = _truncate_text(entry.text, 20)
     print(f"  -> {preview}")
 
 

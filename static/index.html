@@ -91,7 +91,8 @@
             flex: 1;
             overflow-y: auto;
             padding: 16px;
-            padding-bottom: 120px;  /* 增加底部安全区，避免被输入框遮挡 */
+            /* 底部安全区 = 输入框高度(约68px) + 间距(20px) + iPhone安全区 */
+            padding-bottom: calc(88px + env(safe-area-inset-bottom));
         }
 
         .message-group {
@@ -585,6 +586,24 @@
             return params.get('code') || '';
         }
 
+        // 从 sessionStorage 获取配对码
+        function getCodeFromStorage() {
+            try {
+                return sessionStorage.getItem('lportal_code') || '';
+            } catch (e) {
+                return '';
+            }
+        }
+
+        // 保存配对码到 sessionStorage
+        function saveCodeToStorage(code) {
+            try {
+                sessionStorage.setItem('lportal_code', code);
+            } catch (e) {
+                // 忽略存储错误
+            }
+        }
+
         // 连接 WebSocket
         function connect() {
             updateConnectionStatus('connecting');
@@ -597,7 +616,8 @@
             ws.onopen = () => {
                 console.log('WebSocket connected');
                 // 连接成功后发送配对码验证
-                const code = getCodeFromUrl();
+                // 优先级：sessionStorage > URL > 输入框
+                const code = getCodeFromStorage() || getCodeFromUrl();
                 if (code) {
                     ws.send(JSON.stringify({ type: 'auth', code: code }));
                 } else {
@@ -654,6 +674,8 @@
             authBtn.textContent = '连接中...';
             
             pairingCode = code;
+            // 保存到 sessionStorage，便于重连时自动使用
+            saveCodeToStorage(code);
             ws.send(JSON.stringify({ type: 'auth', code: code }));
         }
 
@@ -672,6 +694,11 @@
                     updateConnectionStatus('connected');
                     hideAuthDialog();
                     showToast('已连接', 'success');
+                    // 保存当前使用的配对码到 sessionStorage，便于重连
+                    const currentCode = getCodeFromStorage() || getCodeFromUrl();
+                    if (currentCode) {
+                        saveCodeToStorage(currentCode);
+                    }
                     break;
                     
                 case 'auth_failed':
@@ -867,6 +894,10 @@
 
         // 关闭全屏输入
         function closeFullscreen() {
+            // 将全屏输入框的内容同步回小框
+            messageInput.value = fullscreenTextarea.value;
+            // 触发 input 事件更新高度
+            messageInput.dispatchEvent(new Event('input'));
             fullscreenOverlay.classList.remove('active');
         }
 
