@@ -111,6 +111,20 @@ class PortalApp:
                 elif msg["type"] == "clipboard_error":
                     error = msg.get("error", "未知错误")
                     print_message(f"[WARN] 剪贴板错误: {error}")
+                
+                elif msg["type"] == "file_received":
+                    name = msg.get("name", "")
+                    path = msg.get("path", "")
+                    size = msg.get("size", 0)
+                    # 格式化文件大小
+                    if size < 1024:
+                        size_str = f"{size} B"
+                    elif size < 1024 * 1024:
+                        size_str = f"{size / 1024:.1f} KB"
+                    else:
+                        size_str = f"{size / (1024 * 1024):.1f} MB"
+                    print_message(f"[文件] 已接收: {name} ({size_str})")
+                    print_message(f"  -> 保存到: {path}")
             
             except Exception:
                 continue

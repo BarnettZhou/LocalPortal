@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Optional
 
 import pyperclip
 
+from .file_transfer import get_file_transfer_manager
+
 from .ui import print_help
 
 if TYPE_CHECKING:
@@ -44,6 +46,8 @@ class CommandHandler:
                 return self._handle_open()
             case "/qrcode" | "/qr":
                 return self._handle_qrcode()
+            case "/downloads":
+                return self._handle_downloads()
             case "/help":
                 return self._handle_help()
             case "/exit":
@@ -159,3 +163,12 @@ class CommandHandler:
                 asyncio.create_task(client.close())
         self.server.verified_clients.clear()
         return f"[OK] 配对码已刷新: {old_code} -> {new_code}，所有客户端已断开"
+    
+    def _handle_downloads(self) -> str:
+        """处理 /downloads 命令 - 打开下载文件夹"""
+        try:
+            ftm = get_file_transfer_manager()
+            ftm.open_downloads_folder()
+            return f"[OK] 已打开下载文件夹: {ftm.download_dir}"
+        except Exception as e:
+            return f"[!] 打开下载文件夹失败: {e}"

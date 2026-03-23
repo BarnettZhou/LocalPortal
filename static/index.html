@@ -189,7 +189,7 @@
             padding-bottom: max(12px, env(safe-area-inset-bottom));
             display: flex;
             gap: 12px;
-            align-items: flex-end;
+            align-items: center;  /* 垂直居中对齐 */
             z-index: 100;
             /* 修复 iOS 键盘弹出时滚动问题 */
             transform: translateZ(0);
@@ -204,8 +204,8 @@
 
         .message-input {
             width: 100%;
-            min-height: 44px;
-            max-height: 120px;
+            min-height: 44px;  /* 最小高度 */
+            max-height: 200px;  /* 最大5行高度 */
             padding: 10px 40px 10px 14px;
             border: 1px solid var(--border);
             border-radius: 12px;
@@ -216,6 +216,9 @@
             resize: none;
             outline: none;
             transition: border-color 0.2s;
+            box-sizing: border-box;
+            overflow-y: auto;
+            /* 初始高度通过JS设置，确保和发送按钮一致 */
         }
 
         .message-input:focus {
@@ -490,6 +493,117 @@
             margin-top: 12px;
             min-height: 20px;
         }
+
+        /* 文件选择按钮 */
+        .file-btn {
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 12px;
+            background: var(--bg);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .file-btn:hover {
+            background: var(--surface-hover);
+            color: var(--text);
+        }
+
+        .file-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* 文件传输进度弹窗 */
+        .file-transfer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 300;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .file-transfer-overlay.hidden {
+            display: none;
+        }
+
+        .file-transfer-dialog {
+            background: var(--surface);
+            padding: 24px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 320px;
+            border: 1px solid var(--border);
+        }
+
+        .file-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .file-name {
+            color: var(--text);
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 70%;
+        }
+
+        .file-size {
+            color: var(--text-secondary);
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+
+        .cancel-btn {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            background: var(--surface-hover);
+            color: var(--text);
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .cancel-btn:hover {
+            background: var(--error);
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -521,8 +635,31 @@
         </div>
     </div>
 
+    <!-- 文件传输进度弹窗 -->
+    <div class="file-transfer-overlay hidden" id="fileTransferOverlay">
+        <div class="file-transfer-dialog">
+            <div class="file-info">
+                <span class="file-name" id="fileName">photo.jpg</span>
+                <span class="file-size" id="fileSize">2.5 MB</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+            <div class="progress-text" id="progressText">0% (0 / 2.5 MB)</div>
+            <button class="cancel-btn" id="cancelTransferBtn">取消</button>
+        </div>
+    </div>
+
     <!-- 底部输入区域 -->
     <div class="input-container">
+        <!-- 文件选择按钮 -->
+        <button class="file-btn" id="fileBtn" title="发送图片/视频">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+            </svg>
+        </button>
+        <input type="file" id="fileInput" accept="image/*,video/*" style="display: none;" multiple>
+        
         <div class="input-wrapper">
             <textarea 
                 class="message-input" 
@@ -573,6 +710,16 @@
         const fullscreenSend = document.getElementById('fullscreenSend');
         const toast = document.getElementById('toast');
         const connectionIndicator = document.getElementById('connectionIndicator');
+        
+        // 文件传输元素
+        const fileBtn = document.getElementById('fileBtn');
+        const fileInput = document.getElementById('fileInput');
+        const fileTransferOverlay = document.getElementById('fileTransferOverlay');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const cancelTransferBtn = document.getElementById('cancelTransferBtn');
         
         // 配对码输入元素
         const authOverlay = document.getElementById('authOverlay');
@@ -743,6 +890,28 @@
                 case 'ack':
                     // 消息确认，更新发送状态
                     updateMessageStatus(data.id, 'sent');
+                    break;
+                    
+                case 'file_accept':
+                    // 服务端接受文件传输
+                    showFileProgress();
+                    break;
+                    
+                case 'file_progress':
+                    // 更新传输进度
+                    updateFileProgress(data.received, data.total);
+                    break;
+                    
+                case 'file_saved':
+                    // 文件保存完成
+                    hideFileProgress();
+                    showToast(`文件已保存: ${data.path.split('/').pop()}`, 'success');
+                    break;
+                    
+                case 'file_error':
+                    // 文件传输错误
+                    hideFileProgress();
+                    showToast(data.error || '文件传输失败', 'error');
                     break;
                     
                 case 'server_close':
@@ -947,6 +1116,31 @@
         authInput.addEventListener('input', function() {
             this.value = this.value.replace(/\D/g, '').slice(0, 4);
         });
+        
+        // 文件选择按钮
+        fileBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        // 文件选择
+        fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (files.length > 0) {
+                // 目前一次只处理一个文件
+                sendFile(files[0]);
+            }
+            // 清空选择，允许重复选择同一文件
+            fileInput.value = '';
+        });
+        
+        // 取消传输
+        cancelTransferBtn.addEventListener('click', () => {
+            if (currentFileTransfer) {
+                currentFileTransfer = null;
+                hideFileProgress();
+                showToast('已取消传输', 'warning');
+            }
+        });
 
         // 事件监听
         sendBtn.addEventListener('click', () => {
@@ -961,10 +1155,152 @@
             sendMessage(fullscreenTextarea.value, true);
         });
 
-        // 输入框自适应高度
+        // 文件传输相关变量
+        let currentFileTransfer = null;
+        
+        // 显示文件传输进度
+        function showFileProgress() {
+            fileTransferOverlay.classList.remove('hidden');
+        }
+        
+        // 隐藏文件传输进度
+        function hideFileProgress() {
+            fileTransferOverlay.classList.add('hidden');
+            currentFileTransfer = null;
+        }
+        
+        // 更新传输进度
+        function updateFileProgress(received, total) {
+            const percent = Math.round((received / total) * 100);
+            progressFill.style.width = percent + '%';
+            
+            // 格式化大小显示
+            const formatSize = (bytes) => {
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            };
+            
+            progressText.textContent = `${percent}% (${formatSize(received)} / ${formatSize(total)})`;
+        }
+        
+        // 发送文件
+        async function sendFile(file) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showToast('未连接到服务器', 'error');
+                return;
+            }
+            
+            // 显示文件信息
+            fileName.textContent = file.name;
+            const formatSize = (bytes) => {
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            };
+            fileSize.textContent = formatSize(file.size);
+            progressFill.style.width = '0%';
+            progressText.textContent = '0% (0 / ' + formatSize(file.size) + ')';
+            
+            currentFileTransfer = {
+                name: file.name,
+                size: file.size,
+                type: file.type
+            };
+            
+            // 发送文件开始消息
+            ws.send(JSON.stringify({
+                type: 'file_start',
+                name: file.name,
+                size: file.size,
+                mime_type: file.type
+            }));
+            
+            // 等待服务端确认
+            const waitForAccept = () => new Promise((resolve, reject) => {
+                const handler = (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'file_accept') {
+                        ws.removeEventListener('message', handler);
+                        resolve(data.file_id);
+                    } else if (data.type === 'file_error') {
+                        ws.removeEventListener('message', handler);
+                        reject(data.error);
+                    }
+                };
+                ws.addEventListener('message', handler);
+                setTimeout(() => {
+                    ws.removeEventListener('message', handler);
+                    reject('等待确认超时');
+                }, 10000);
+            });
+            
+            try {
+                const fileId = await waitForAccept();
+                currentFileTransfer.fileId = fileId;
+                
+                // 分片读取并发送
+                const chunkSize = 64 * 1024; // 64KB
+                const totalChunks = Math.ceil(file.size / chunkSize);
+                
+                for (let i = 0; i < totalChunks; i++) {
+                    if (!currentFileTransfer) break; // 被取消
+                    
+                    const start = i * chunkSize;
+                    const end = Math.min(start + chunkSize, file.size);
+                    const chunk = file.slice(start, end);
+                    
+                    const arrayBuffer = await chunk.arrayBuffer();
+                    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+                    
+                    ws.send(JSON.stringify({
+                        type: 'file_chunk',
+                        file_id: fileId,
+                        index: i,
+                        data: base64,
+                        is_last: i === totalChunks - 1
+                    }));
+                    
+                    // 更新进度（估算）
+                    updateFileProgress(end, file.size);
+                    
+                    // 小延迟避免阻塞
+                    await new Promise(r => setTimeout(r, 10));
+                }
+                
+                // 发送完成
+                if (currentFileTransfer) {
+                    ws.send(JSON.stringify({
+                        type: 'file_end',
+                        file_id: fileId
+                    }));
+                }
+                
+            } catch (error) {
+                hideFileProgress();
+                showToast('文件传输失败: ' + error, 'error');
+            }
+        }
+        
+        // 设置初始高度（和发送按钮一致）
+        messageInput.style.height = '44px';
+        
+        // 输入框自适应高度（最多5行，约200px）
         messageInput.addEventListener('input', function() {
+            // 临时移除高度限制，获取自然高度
+            const oldHeight = this.style.height;
             this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            
+            // 计算新高度（考虑padding和border）
+            const newHeight = Math.max(44, Math.min(this.scrollHeight, 200));
+            this.style.height = newHeight + 'px';
+            
+            // 控制滚动条显示
+            if (newHeight >= 200) {
+                this.style.overflowY = 'auto';
+            } else {
+                this.style.overflowY = 'hidden';
+            }
         });
 
         // Enter 发送，Shift+Enter 换行

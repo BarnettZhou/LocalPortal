@@ -166,6 +166,7 @@ Local Portal 命令帮助
 /status            显示服务运行状态
 /open              在浏览器中打开主页面
 /qrcode (/qr)      显示二维码（扫码连接）
+/downloads         打开下载文件夹
 /refresh           刷新配对码（所有客户端需重新登录）
 /help              显示此帮助信息
 /exit              退出程序

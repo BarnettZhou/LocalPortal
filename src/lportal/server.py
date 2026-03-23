@@ -1,6 +1,7 @@
 """HTTP + WebSocket 服务"""
 
 import asyncio
+import base64
 import json
 from pathlib import Path
 from typing import Optional, Set
@@ -9,6 +10,7 @@ import pyperclip
 from aiohttp import web
 
 from .config import ServerConfig
+from .file_transfer import get_file_transfer_manager
 from .history import History, MessageEntry
 from .qr import generate_qr_html, generate_qr_png, get_local_ip
 
@@ -113,12 +115,21 @@ class Server:
                 if msg.type == web.WSMsgType.TEXT:
                     try:
                         data = json.loads(msg.data)
-                        if data.get("type") == "text":
+                        msg_type = data.get("type")
+                        
+                        if msg_type == "text":
                             await self._handle_text_message(
                                 data.get("content", ""), 
                                 ws,
                                 data.get("client_id")
                             )
+                        elif msg_type == "file_start":
+                            await self._handle_file_start(data, ws)
+                        elif msg_type == "file_chunk":
+                            await self._handle_file_chunk(data, ws)
+                        elif msg_type == "file_end":
+                            await self._handle_file_end(data, ws)
+                            
                     except json.JSONDecodeError:
                         pass
                 elif msg.type == web.WSMsgType.ERROR:
@@ -177,6 +188,83 @@ class Server:
                     await client.send_json(message_data)
                 except Exception:
                     pass
+    
+    async def _handle_file_start(self, data: dict, sender: web.WebSocketResponse) -> None:
+        """处理文件传输开始"""
+        ftm = get_file_transfer_manager()
+        
+        name = data.get("name", "")
+        size = data.get("size", 0)
+        mime_type = data.get("mime_type", "")
+        
+        file_id, error = ftm.start_transfer(name, size, mime_type)
+        
+        if file_id:
+            await sender.send_json({
+                "type": "file_accept",
+                "file_id": file_id
+            })
+        else:
+            await sender.send_json({
+                "type": "file_error",
+                "error": error
+            })
+    
+    async def _handle_file_chunk(self, data: dict, sender: web.WebSocketResponse) -> None:
+        """处理文件分片"""
+        ftm = get_file_transfer_manager()
+        
+        file_id = data.get("file_id", "")
+        chunk_data = base64.b64decode(data.get("data", ""))
+        index = data.get("index", 0)
+        
+        success, error = ftm.receive_chunk(file_id, chunk_data, index)
+        
+        if success:
+            # 发送进度
+            received, total = ftm.get_transfer_progress(file_id)
+            await sender.send_json({
+                "type": "file_progress",
+                "file_id": file_id,
+                "received": received,
+                "total": total
+            })
+        else:
+            await sender.send_json({
+                "type": "file_error",
+                "file_id": file_id,
+                "error": error
+            })
+    
+    async def _handle_file_end(self, data: dict, sender: web.WebSocketResponse) -> None:
+        """处理文件传输完成"""
+        ftm = get_file_transfer_manager()
+        
+        file_id = data.get("file_id", "")
+        save_path, error = ftm.complete_transfer(file_id)
+        
+        if save_path:
+            # 通知发送者
+            await sender.send_json({
+                "type": "file_saved",
+                "file_id": file_id,
+                "path": str(save_path),
+                "size": save_path.stat().st_size
+            })
+            
+            # 通知终端
+            await self.terminal_queue.put({
+                "type": "file_received",
+                "name": save_path.name,
+                "path": str(save_path),
+                "size": save_path.stat().st_size
+            })
+        else:
+            await sender.send_json({
+                "type": "file_error",
+                "file_id": file_id,
+                "error": error
+            })
     
     async def start(self) -> int:
         """启动服务器，返回实际使用的端口"""
