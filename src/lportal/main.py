@@ -113,18 +113,10 @@ class PortalApp:
                     print_message(f"[WARN] 剪贴板错误: {error}")
                 
                 elif msg["type"] == "file_received":
-                    name = msg.get("name", "")
+                    from datetime import datetime
                     path = msg.get("path", "")
-                    size = msg.get("size", 0)
-                    # 格式化文件大小
-                    if size < 1024:
-                        size_str = f"{size} B"
-                    elif size < 1024 * 1024:
-                        size_str = f"{size / 1024:.1f} KB"
-                    else:
-                        size_str = f"{size / (1024 * 1024):.1f} MB"
-                    print_message(f"[文件] 已接收: {name} ({size_str})")
-                    print_message(f"  -> 保存到: {path}")
+                    time_str = datetime.now().strftime("%H:%M:%S")
+                    print_message(f"[{time_str}] 收到文件 [已保存]: {path}")
             
             except Exception:
                 continue

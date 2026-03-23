@@ -731,6 +731,8 @@
         let messages = [];
         let pairingCode = '';
         let isAuthenticated = false;
+        let isManualInputMode = false;  // 标记是否处于手动输入模式（避免重连时重置）
+        let isConnecting = false;  // 标记是否正在连接中，防止重复连接
 
         // 从 URL 获取配对码
         function getCodeFromUrl() {
@@ -758,20 +760,42 @@
 
         // 连接 WebSocket
         function connect() {
+            // 防止重复连接
+            if (isConnecting) {
+                console.log('Already connecting, skip...');
+                return;
+            }
+            
+            // 如果已有连接，先关闭
+            if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+                console.log('Closing existing connection...');
+                ws.close();
+            }
+            
+            isConnecting = true;
             updateConnectionStatus('connecting');
             
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws`;
             
+            console.log('Creating new WebSocket connection...');
             ws = new WebSocket(wsUrl);
             
             ws.onopen = () => {
                 console.log('WebSocket connected');
-                // 连接成功后发送配对码验证
-                // 优先级：URL > localStorage > 输入框
-                // URL 优先：用户主动扫码进入应使用新配对码
+                isConnecting = false;
+                reconnectAttempts = 0;
+                
+                // 如果处于手动输入模式（用户正在输入配对码），不要自动发送
+                if (isManualInputMode) {
+                    console.log('Manual input mode, skip auto auth');
+                    return;
+                }
+                
+                // 首次连接：优先级 URL > localStorage > 输入框
                 const code = getCodeFromUrl() || getCodeFromStorage();
                 if (code) {
+                    console.log('Auto sending auth code from URL/Storage');
                     ws.send(JSON.stringify({ type: 'auth', code: code }));
                 } else {
                     // 显示配对码输入框
@@ -786,12 +810,19 @@
             
             ws.onclose = () => {
                 console.log('WebSocket closed');
+                isConnecting = false;
                 updateConnectionStatus('disconnected');
-                isAuthenticated = false;
                 
-                // 尝试重连
-                if (reconnectAttempts < maxReconnectAttempts) {
+                // 如果处于手动输入模式，不重连（避免打断用户输入）
+                if (isManualInputMode) {
+                    console.log('Manual input mode, skip reconnect');
+                    return;
+                }
+                
+                // 如果已认证，尝试重连
+                if (isAuthenticated && reconnectAttempts < maxReconnectAttempts) {
                     reconnectAttempts++;
+                    console.log(`Reconnecting... attempt ${reconnectAttempts}`);
                     setTimeout(connect, 2000 * reconnectAttempts);
                 }
             };
@@ -804,15 +835,19 @@
 
         // 显示配对码输入对话框
         function showAuthDialog() {
+            isManualInputMode = true;  // 进入手动输入模式
             authOverlay.classList.remove('hidden');
             authInput.value = '';
             authError.textContent = '';
+            authBtn.disabled = false;
+            authBtn.textContent = '连接';
             authInput.focus();
         }
 
         // 隐藏配对码输入对话框
         function hideAuthDialog() {
             authOverlay.classList.add('hidden');
+            isManualInputMode = false;  // 退出手动输入模式
         }
 
         // 发送配对码
@@ -827,8 +862,18 @@
             authBtn.textContent = '连接中...';
             
             pairingCode = code;
+            isManualInputMode = false;  // 发送后退出手动输入模式
             // 保存到 localStorage，便于重连时自动使用
             saveCodeToStorage(code);
+            
+            // 确保 WebSocket 连接正常
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                console.log('WebSocket not open, connecting first...');
+                connect();
+                // 等待连接成功后发送（通过 onopen 回调）
+                return;
+            }
+            
             ws.send(JSON.stringify({ type: 'auth', code: code }));
         }
 
@@ -843,6 +888,7 @@
                 case 'auth_success':
                     // 配对码验证成功
                     isAuthenticated = true;
+                    isManualInputMode = false;  // 验证成功，退出手动输入模式
                     reconnectAttempts = 0;
                     updateConnectionStatus('connected');
                     hideAuthDialog();
@@ -857,10 +903,14 @@
                 case 'auth_failed':
                     // 配对码验证失败
                     isAuthenticated = false;
-                    showAuthDialog();  // 显示输入框让用户重新输入
+                    isManualInputMode = true;  // 保持手动输入模式，避免重连干扰
+                    // 显示输入框让用户重新输入
+                    showAuthDialog();
                     authError.textContent = data.message || '配对码错误';
                     authBtn.disabled = false;
                     authBtn.textContent = '连接';
+                    // 清除 localStorage 中的过期配对码
+                    localStorage.removeItem('lportal_code');
                     break;
                     
                 case 'history':

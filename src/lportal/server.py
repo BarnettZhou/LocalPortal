@@ -65,31 +65,41 @@ class Server:
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         
-        # 1. 等待配对码验证
-        try:
-            # 设置超时 10 秒等待配对码
-            auth_msg = await asyncio.wait_for(ws.receive(), timeout=10.0)
-            if auth_msg.type == web.WSMsgType.TEXT:
-                data = json.loads(auth_msg.data)
-                if data.get("type") == "auth":
-                    code = data.get("code", "")
-                    if code != self.config.pairing_code:
-                        await ws.send_json({"type": "auth_failed", "message": "配对码错误"})
-                        await ws.close()
-                        return ws
-                    # 配对码正确
-                    await ws.send_json({"type": "auth_success"})
+        # 1. 等待配对码验证（循环直到验证成功或超时）
+        authenticated = False
+        for attempt in range(3):  # 最多允许 3 次验证尝试
+            try:
+                # 设置超时 10 秒等待配对码
+                auth_msg = await asyncio.wait_for(ws.receive(), timeout=10.0)
+                if auth_msg.type == web.WSMsgType.TEXT:
+                    data = json.loads(auth_msg.data)
+                    if data.get("type") == "auth":
+                        code = data.get("code", "")
+                        if code != self.config.pairing_code:
+                            # 配对码错误，不关闭连接，让前端重新输入
+                            await ws.send_json({"type": "auth_failed", "message": "配对码错误"})
+                            continue  # 继续循环，等待重新输入
+                        # 配对码正确
+                        await ws.send_json({"type": "auth_success"})
+                        authenticated = True
+                        break
+                    else:
+                        # 未提供配对码，继续监听
+                        await ws.send_json({"type": "auth_failed", "message": "请先发送配对码"})
+                        continue
                 else:
-                    await ws.send_json({"type": "auth_failed", "message": "请先发送配对码"})
-                    await ws.close()
-                    return ws
-            else:
-                await ws.close()
-                return ws
-        except asyncio.TimeoutError:
-            await ws.close()
-            return ws
-        except json.JSONDecodeError:
+                    # 非文本消息，继续监听
+                    continue
+            except asyncio.TimeoutError:
+                # 超时，发送提示但不关闭
+                await ws.send_json({"type": "auth_failed", "message": "连接超时，请重新输入配对码"})
+                continue
+            except json.JSONDecodeError:
+                # 解析错误，继续监听
+                continue
+        
+        # 验证失败，关闭连接
+        if not authenticated:
             await ws.close()
             return ws
         
