@@ -133,8 +133,9 @@ uv build
 3. **commands.py - CommandHandler**: 处理斜杠命令（/auto, /copy, /list 等）
 4. **config.py - ServerConfig**: 配置和运行时状态管理，包括 4 位数字配对码生成
 5. **history.py - History**: 循环缓冲区实现的历史记录（内存存储，不持久化）
-6. **qr.py**: 二维码生成、局域网 IP 获取、浏览器唤起
-7. **ui.py**: 终端 UI 输出，使用 rich 库美化
+6. **file_transfer.py - FileTransferManager**: 文件传输管理，处理图片/视频上传
+7. **qr.py**: 二维码生成、局域网 IP 获取、浏览器唤起
+8. **ui.py**: 终端 UI 输出，使用 rich 库美化
 
 ### WebSocket 通信协议
 
@@ -142,6 +143,9 @@ uv build
 ```typescript
 { type: 'auth'; code: string }           // 配对码验证
 { type: 'text'; content: string; client_id?: string }
+{ type: 'file_start'; name: string; size: number; mime_type: string }
+{ type: 'file_chunk'; file_id: string; index: number; data: string }
+{ type: 'file_end'; file_id: string }
 ```
 
 **服务端 → 客户端**：
@@ -150,6 +154,10 @@ uv build
 { type: 'auth_failed'; message: string } // 验证失败
 { type: 'history'; data: MessageEntry[] }
 { type: 'new'; data: MessageEntry }
+{ type: 'file_accept'; file_id: string }
+{ type: 'file_progress'; file_id: string; received: number; total: number }
+{ type: 'file_saved'; file_id: string; path: string; size: number }
+{ type: 'file_error'; file_id: string; error: string }
 { type: 'server_close'; message: string }
 ```
 
@@ -173,6 +181,7 @@ uv build
 | `/status` | 显示服务状态 |
 | `/open` | 浏览器打开主页面 |
 | `/qrcode` (`/qr`) | 显示 ASCII 二维码（扫码连接） |
+| `/downloads` | 打开下载文件夹 |
 | `/refresh` | 刷新配对码（断开所有客户端） |
 | `/help` | 显示帮助 |
 | `/exit` | 退出程序 |
@@ -202,6 +211,9 @@ uv build
 - **配对码验证**：4 位数字随机码，客户端连接时必须验证
 - **超时机制**：配对码验证超时 10 秒
 - **刷新配对码**：`/refresh` 命令可刷新配对码，强制断开所有客户端
+- **文件类型白名单**：只允许图片（jpeg/png/gif/webp）和视频（mp4/mov/webm）
+- **文件大小限制**：默认最大 100MB
+- **文件名清理**：去除路径分隔符，防止目录遍历攻击
 
 ## Testing
 
@@ -246,11 +258,13 @@ uv tool install -e .
 4. **配对码**：每次启动生成新的 4 位随机码，用于客户端验证
 5. **历史记录**：仅内存存储，重启后清空，最大条数可配置
 6. **静态文件**：`static/index.html` 作为移动端界面，打包时会包含在 wheel 中
+7. **下载目录**：默认保存到 `~/Downloads`，可通过 `LPORTAL_DOWNLOAD_DIR` 环境变量自定义
+8. **文件传输**：支持图片和视频，最大 100MB，分 64KB 切片传输
 
 ## TODO (from README)
 
-- [ ] 支持图片传输
-- [ ] 支持文件传输
+- [x] 支持图片传输
+- [x] 支持视频传输
 - [ ] 消息持久化存储
 - [ ] 多设备同时在线管理
 - [ ] 加密传输支持
