@@ -1,12 +1,39 @@
 """文件传输管理器"""
 
 import base64
+import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 import platform
+
+
+def get_default_download_dir() -> Path:
+    """获取系统默认下载目录
+    
+    优先级：
+    1. 环境变量 LPORTAL_DOWNLOAD_DIR
+    2. Windows: %USERPROFILE%\Downloads
+    3. macOS/Linux: ~/Downloads
+    """
+    # 1. 检查环境变量
+    env_dir = os.environ.get('LPORTAL_DOWNLOAD_DIR')
+    if env_dir:
+        return Path(env_dir).expanduser()
+    
+    # 2. 根据不同系统获取
+    system = platform.system()
+    
+    if system == "Windows":
+        # Windows: 使用 USERPROFILE 环境变量
+        user_profile = os.environ.get('USERPROFILE')
+        if user_profile:
+            return Path(user_profile) / "Downloads"
+    
+    # macOS/Linux 或 fallback: 使用用户主目录
+    return Path.home() / "Downloads"
 
 
 @dataclass
@@ -22,7 +49,7 @@ class FileInfo:
     
     def __post_init__(self):
         if self.download_dir is None:
-            self.download_dir = Path.home() / "Downloads"
+            self.download_dir = get_default_download_dir()
     
     @property
     def save_path(self) -> Path:
@@ -53,7 +80,7 @@ class FileTransferManager:
         if download_dir:
             self.download_dir = Path(download_dir).expanduser()
         else:
-            self.download_dir = Path.home() / "Downloads"
+            self.download_dir = get_default_download_dir()
         
         # 确保下载目录存在
         self.download_dir.mkdir(parents=True, exist_ok=True)
