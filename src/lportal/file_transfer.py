@@ -11,7 +11,7 @@ import platform
 
 
 def get_default_download_dir() -> Path:
-    """获取系统默认下载目录
+    r"""获取系统默认下载目录
     
     优先级：
     1. 环境变量 LPORTAL_DOWNLOAD_DIR

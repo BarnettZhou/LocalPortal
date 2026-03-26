@@ -7,17 +7,100 @@ from io import BytesIO
 import qrcode
 
 
+def _is_private_ip(ip: str) -> bool:
+    """检查 IP 是否是 RFC 1918 私有地址"""
+    if not ip or ip.startswith('127.'):
+        return False
+    if ip.startswith('192.168.'):
+        return True
+    if ip.startswith('10.'):
+        return True
+    if ip.startswith('172.'):
+        try:
+            second_octet = int(ip.split('.')[1])
+            return 16 <= second_octet <= 31
+        except (ValueError, IndexError):
+            return False
+    return False
+
+
 def get_local_ip() -> str:
-    """获取本机局域网 IP 地址"""
+    """获取本机局域网 IP 地址
+    
+    优先返回 RFC 1918 规定的私有地址段：
+    - 192.168.0.0/16
+    - 10.0.0.0/8  
+    - 172.16.0.0/12
+    """
+    # 方法1：通过连接外部地址获取（最快，但可能在 VPN 环境下返回非内网地址）
     try:
-        # 通过连接外部地址来获取本机 IP
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
+        s.settimeout(2)
+        s.connect(("223.5.5.5", 53))  # 使用阿里 DNS，国内访问更快
         ip = s.getsockname()[0]
         s.close()
-        return ip
+        # 如果获取到的是私有地址，直接返回
+        if _is_private_ip(ip):
+            return ip
     except Exception:
-        return "127.0.0.1"
+        pass
+    
+    # 方法2：遍历所有网络接口获取 IP 列表
+    try:
+        hostname = socket.gethostname()
+        ip_list = []
+        
+        # 获取本机所有 IP 地址
+        try:
+            # Python 3.3+ 的方式
+            addr_info = socket.getaddrinfo(hostname, None, socket.AF_INET)
+            for info in addr_info:
+                ip = info[4][0]
+                if _is_private_ip(ip):
+                    ip_list.append(ip)
+        except Exception:
+            pass
+        
+        # 尝试通过 socket 连接本地网络广播地址来获取
+        if not ip_list:
+            # 尝试常见的内网网关地址
+            test_targets = []
+            for i in range(1, 255):
+                test_targets.append(f'192.168.{i}.1')
+            for i in range(16, 32):
+                test_targets.append(f'172.{i}.1.1')
+            for i in range(1, 255):
+                test_targets.append(f'10.{i}.1.1')
+            
+            for target in test_targets[:10]:  # 只尝试前10个，避免太慢
+                try:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    s.settimeout(0.1)
+                    s.connect((target, 80))
+                    ip = s.getsockname()[0]
+                    s.close()
+                    if _is_private_ip(ip):
+                        ip_list.append(ip)
+                        break
+                except Exception:
+                    continue
+        
+        # 优先返回 192.168.x.x 地址
+        for ip in ip_list:
+            if ip.startswith('192.168.'):
+                return ip
+        # 其次返回 10.x.x.x
+        for ip in ip_list:
+            if ip.startswith('10.'):
+                return ip
+        # 最后返回 172.16-31.x.x
+        if ip_list:
+            return ip_list[0]
+            
+    except Exception:
+        pass
+    
+    return "127.0.0.1"
 
 
 def generate_qr_png(url: str) -> bytes:
