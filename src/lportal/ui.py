@@ -25,10 +25,12 @@ def print_banner(config: "ServerConfig") -> None:
     console.print()
     console.print(f"配对码: {config.pairing_code}")
     console.print()
+    mode_desc = "追加" if config.copy_mode == 'add' else "覆盖"
+    console.print(f"复制模式: {mode_desc} 模式 (/mode 切换)")
     console.print("提示: 使用 /qr 命令显示二维码")
     console.print()
     console.print("-" * 40)
-    console.print("可用命令: /auto, /copy, /list, /status, /open, /qr, /refresh, /exit, /help")
+    console.print("可用命令: /auto, /copy, /list, /status, /open, /qr, /rq, /mode, /new-session, /exit, /help")
     console.print()
 
 
@@ -54,7 +56,12 @@ def print_status(config: "ServerConfig") -> None:
     # 运行状态
     console.print("运行状态")
     auto_status = "开启 [OK]" if config.auto_copy else "关闭 [X]"
+    mode_status = "追加" if config.copy_mode == 'add' else "覆盖"
     console.print(f"  自动复制模式:  {auto_status}")
+    console.print(f"  复制模式:      {mode_status} (/mode 切换)")
+    if config.copy_mode == 'add' and config.session_buffer:
+        buffer_preview = config.session_buffer[:30] + "..." if len(config.session_buffer) > 30 else config.session_buffer
+        console.print(f"  会话缓冲区:    \"{buffer_preview}\"")
     console.print(f"  在线客户端:    {len(config.connected_clients)}")
     console.print(f"  历史消息数:    {len(config.history)} / {config.history.maxsize}")
     console.print(f"  运行时间:      {config.uptime}")
@@ -141,6 +148,57 @@ def print_list(entries: List["MessageEntry"]) -> None:
     console.print()
 
 
+def print_session_list(entries: List["MessageEntry"]) -> None:
+    """打印历史消息列表 - 追加模式下按 session 分组显示"""
+    if not entries:
+        console.print("暂无历史消息")
+        return
+    
+    console.print()
+    
+    # 固定预览宽度
+    PREVIEW_MAX_WIDTH = 40
+    
+    # 打印表头
+    console.print("ID   预览                                        时间    ", style="dim")
+    console.print("-" * 61, style="dim")
+    
+    # 按 session_id 分组（entries 是按时间倒序的）
+    from itertools import groupby
+    
+    # 按 session_id 分组
+    sessions = []
+    for session_id, group in groupby(entries, key=lambda e: e.session_id):
+        msgs = list(group)
+        sessions.append({
+            'id': msgs[0].id,  # 取最新的消息 ID
+            'count': len(msgs),
+            'text': ' | '.join(m.text for m in reversed(msgs)),  # 按时间正序拼接
+            'time': msgs[0].time,  # 最新时间
+            'session_id': session_id
+        })
+    
+    # 打印每个 session
+    for session in sessions:
+        time_str = session['time'].strftime("%H:%M:%S")
+        
+        # 构建预览文本
+        if session['count'] > 1:
+            preview_text = f"[{session['count']}条] {session['text']}"
+        else:
+            preview_text = session['text']
+        
+        # 截断预览
+        preview = _truncate_text(preview_text, PREVIEW_MAX_WIDTH)
+        preview_width = _text_width(preview)
+        padding = " " * (PREVIEW_MAX_WIDTH - preview_width)
+        
+        row = f"{session['id']:<4} {preview}{padding} {time_str}"
+        console.print(row)
+    
+    console.print()
+
+
 def print_message(msg: str, style: str = "") -> None:
     """打印普通消息 - 使用纯文本避免样式问题"""
     print(msg)
@@ -160,15 +218,21 @@ def print_help() -> str:
     help_text = """
 Local Portal 命令帮助
 
-/auto [on|off]     开启/关闭自动复制模式
-/copy [N]          复制历史消息（N=1-10，无参=最近一条）
-/list (/ls)        列出最近10条消息摘要
-/status            显示服务运行状态
-/open              在浏览器中打开主页面
-/qrcode (/qr)      显示二维码（扫码连接）
-/downloads         打开下载文件夹
-/refresh           刷新配对码（所有客户端需重新登录）
-/help              显示此帮助信息
-/exit              退出程序
+/auto [on|off]         开启/关闭自动复制模式
+/copy [N]              复制历史消息（N=1-10，无参=最近一条）
+/list (/ls)            列出最近10条消息摘要
+/status                显示服务运行状态
+/open                  在浏览器中打开主页面
+/qrcode (/qr)          显示二维码（扫码连接）
+/downloads             打开下载文件夹
+/refresh-qrcode (/rq)  刷新配对码（所有客户端需重新登录）
+/mode [cover|add]      切换复制模式 (cover=覆盖模式, add=追加模式)
+/new-session           追加模式下刷新会话，清空缓冲区
+/help                  显示此帮助信息
+/exit                  退出程序
+
+模式说明:
+  cover (默认) - 新消息覆盖上一条，适合单条复制
+  add          - 新消息追加到末尾，适合多条合并
 """
     return help_text.strip()

@@ -132,10 +132,11 @@ uv build
 2. **server.py - Server**: aiohttp HTTP/WebSocket 服务器，处理客户端连接和消息
 3. **commands.py - CommandHandler**: 处理斜杠命令（/auto, /copy, /list 等）
 4. **config.py - ServerConfig**: 配置和运行时状态管理，包括 4 位数字配对码生成
-5. **history.py - History**: 循环缓冲区实现的历史记录（内存存储，不持久化）
+5. **history.py - History**: 循环缓冲区实现的历史记录（内存存储，不持久化），支持 session 分组
 6. **file_transfer.py - FileTransferManager**: 文件传输管理，处理图片/视频上传
 7. **qr.py**: 二维码生成、局域网 IP 获取、浏览器唤起
 8. **ui.py**: 终端 UI 输出，使用 rich 库美化
+9. **static/index.html**: Web 端界面，支持复制模式切换和会话管理
 
 ### WebSocket 通信协议
 
@@ -146,18 +147,22 @@ uv build
 { type: 'file_start'; name: string; size: number; mime_type: string }
 { type: 'file_chunk'; file_id: string; index: number; data: string }
 { type: 'file_end'; file_id: string }
+{ type: 'command'; command: 'new_session' }  // 刷新会话
+{ type: 'command'; command: 'set_mode'; mode: 'cover' | 'add' }  // 切换模式
 ```
 
 **服务端 → 客户端**：
 ```typescript
 { type: 'auth_success' }                 // 验证成功
 { type: 'auth_failed'; message: string } // 验证失败
-{ type: 'history'; data: MessageEntry[] }
-{ type: 'new'; data: MessageEntry }
+{ type: 'history'; data: MessageEntry[] }  // 包含 session_id
+{ type: 'new'; data: MessageEntry }        // 包含 session_id
 { type: 'file_accept'; file_id: string }
 { type: 'file_progress'; file_id: string; received: number; total: number }
 { type: 'file_saved'; file_id: string; path: string; size: number }
 { type: 'file_error'; file_id: string; error: string }
+{ type: 'session_reset'; message: string }   // 追加模式下会话已刷新
+{ type: 'mode_changed'; mode: string; message: string }  // 模式已切换
 { type: 'server_close'; message: string }
 ```
 
@@ -182,7 +187,9 @@ uv build
 | `/open` | 浏览器打开主页面 |
 | `/qrcode` (`/qr`) | 显示 ASCII 二维码（扫码连接） |
 | `/downloads` | 打开下载文件夹 |
-| `/refresh` | 刷新配对码（断开所有客户端） |
+| `/mode` | 切换复制模式 (cover/add) |
+| `/new-session` | 追加模式下刷新会话 |
+| `/refresh-qrcode` (`/rq`) | 刷新配对码（断开所有客户端） |
 | `/help` | 显示帮助 |
 | `/exit` | 退出程序 |
 
@@ -192,6 +199,7 @@ uv build
 
 - **注释语言**：中文（面向中国开发者）
 - **字符串引号**：单引号优先，但保持一致即可
+- **模式管理**：`copy_mode` 控制复制行为，`session_buffer` 存储追加模式内容
 - **类型注解**：使用 Python 3.9+ 类型提示（`list[str]` 而非 `List[str]`）
 - **异步代码**：使用 `asyncio` 和 `async`/`await`
 - **导入风格**：
@@ -210,10 +218,27 @@ uv build
 
 - **配对码验证**：4 位数字随机码，客户端连接时必须验证
 - **超时机制**：配对码验证超时 10 秒
-- **刷新配对码**：`/refresh` 命令可刷新配对码，强制断开所有客户端
+- **刷新配对码**：`/refresh-qrcode` 命令可刷新配对码，强制断开所有客户端
 - **文件类型白名单**：只允许图片（jpeg/png/gif/webp）和视频（mp4/mov/webm）
 - **文件大小限制**：默认最大 100MB
 - **文件名清理**：去除路径分隔符，防止目录遍历攻击
+
+### 复制模式与 Session 管理
+
+**覆盖模式 (cover)**：
+- 每条消息有独立的 session_id
+- 新消息覆盖剪贴板内容
+- `/list` 中每条消息单独显示
+
+**追加模式 (add)**：
+- 同一 session 的多条消息共享 session_id
+- 新消息追加到剪贴板，自动换行合并
+- `/list` 中同一 session 的消息合并显示为 `[N条]`
+- 使用 `/new-session` 或 Web 端"新会话"按钮开始新 session
+
+**模式切换时的行为**：
+- 切换模式会自动调用 `new_session()`，确保新旧消息分开
+- Web 端和 CLI 端模式同步，通过 `set_mode` 命令通知服务端
 
 ## Testing
 
@@ -260,11 +285,16 @@ uv tool install -e .
 6. **静态文件**：`static/index.html` 作为移动端界面，打包时会包含在 wheel 中
 7. **下载目录**：默认保存到 `~/Downloads`，可通过 `LPORTAL_DOWNLOAD_DIR` 环境变量自定义
 8. **文件传输**：支持图片和视频，最大 100MB，分 64KB 切片传输
+9. **复制模式**：CLI 和 Web 端都支持切换覆盖/追加模式，切换时自动刷新 session
+10. **Web 端 UI**：顶部工具栏可切换模式，追加模式下显示"新会话"按钮
 
 ## TODO (from README)
 
 - [x] 支持图片传输
 - [x] 支持视频传输
+- [x] 复制模式切换 (cover/add)
+- [x] 追加模式下会话刷新 (/new-session)
+- [x] 网页端模式切换 UI
 - [ ] 消息持久化存储
 - [ ] 多设备同时在线管理
 - [ ] 加密传输支持

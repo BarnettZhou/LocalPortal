@@ -52,8 +52,12 @@ class CommandHandler:
                 return self._handle_help()
             case "/exit":
                 return self._handle_exit()
-            case "/refresh":
-                return self._handle_refresh()
+            case "/refresh-qrcode" | "/rq":
+                return self._handle_refresh_qrcode()
+            case "/mode":
+                return self._handle_mode(args)
+            case "/new-session":
+                return self._handle_new_session()
             case _:
                 return f"[?] 未知命令: {cmd}，输入 /help 查看可用命令"
     
@@ -86,8 +90,23 @@ class CommandHandler:
                 index = int(args[0])
                 entry = self.config.history.get(index)
             
-            pyperclip.copy(entry.text)
-            preview = entry.preview[:30] + "..." if len(entry.preview) > 30 else entry.preview
+            # 找到同一 session 的所有消息
+            session_entries = [
+                e for e in self.config.history.list()
+                if e.session_id == entry.session_id
+            ]
+            # 按时间正序排列（最早的在前）
+            session_entries.reverse()
+            copy_text = '\n'.join(e.text for e in session_entries)
+            count = len(session_entries)
+            
+            # 构建预览文本
+            if count > 1:
+                preview = f"[{count}条] {entry.preview[:20]}..."
+            else:
+                preview = entry.preview[:30] + "..." if len(entry.preview) > 30 else entry.preview
+            
+            pyperclip.copy(copy_text)
             return f"[OK] 已复制: {preview}"
         
         except (ValueError, IndexError) as e:
@@ -95,11 +114,13 @@ class CommandHandler:
     
     def _handle_list(self) -> str:
         """处理 /list 命令"""
-        from .ui import print_list
+        from .ui import print_session_list
         entries = self.config.history.list()
         if not entries:
             return "暂无历史消息"
-        print_list(entries)
+        
+        # 统一按 session 分组显示
+        print_session_list(entries)
         return ""
     
     def _handle_status(self) -> str:
@@ -149,8 +170,8 @@ class CommandHandler:
         """处理 /exit 命令"""
         raise SystemExit
     
-    def _handle_refresh(self) -> str:
-        """处理 /refresh 命令 - 刷新配对码"""
+    def _handle_refresh_qrcode(self) -> str:
+        """处理 /refresh-qrcode 命令 - 刷新配对码"""
         old_code = self.config.pairing_code
         new_code = self.config.refresh_pairing_code()
         # 断开所有已验证客户端（需要重新登录）
@@ -163,6 +184,37 @@ class CommandHandler:
                 asyncio.create_task(client.close())
         self.server.verified_clients.clear()
         return f"[OK] 配对码已刷新: {old_code} -> {new_code}，所有客户端已断开"
+    
+    def _handle_mode(self, args: list[str]) -> str:
+        """处理 /mode 命令 - 切换复制模式"""
+        if not args:
+            mode_desc = "追加模式" if self.config.copy_mode == 'add' else "覆盖模式"
+            return f"当前复制模式: {self.config.copy_mode} ({mode_desc})"
+        
+        mode = args[0].lower()
+        if mode == 'cover':
+            if self.config.copy_mode != 'cover':
+                self.config.copy_mode = 'cover'
+                # 切换模式时重置会话，确保新消息与旧消息分开
+                self.config.new_session()
+                self.config.session_buffer = ''
+            return "[OK] 复制模式: 覆盖模式 (cover)"
+        elif mode == 'add':
+            if self.config.copy_mode != 'add':
+                self.config.copy_mode = 'add'
+                # 切换模式时重置会话，确保新消息与旧消息分开
+                self.config.new_session()
+            return "[OK] 复制模式: 追加模式 (add)"
+        else:
+            return "用法: /mode [cover|add]\n  cover - 覆盖模式，新消息覆盖上一条（默认）\n  add   - 追加模式，新消息追加到末尾"
+    
+    def _handle_new_session(self) -> str:
+        """处理 /new-session 命令 - 追加模式下刷新会话"""
+        if self.config.copy_mode != 'add':
+            return "[!] /new-session 仅在追加模式下可用，当前为覆盖模式"
+        
+        self.config.session_buffer = ''
+        return "[OK] 会话已刷新，下一条消息将作为第一条消息"
     
     def _handle_downloads(self) -> str:
         """处理 /downloads 命令 - 打开下载文件夹"""

@@ -30,6 +30,19 @@ class ServerConfig:
         self.connected_clients: set = set()
         self._history = History(self.max_history)
         self.pairing_code: str = generate_pairing_code()
+        
+        # 复制模式: 'cover' (覆盖模式, 默认) 或 'add' (追加模式)
+        self.copy_mode: str = 'cover'
+        # 追加模式下的会话缓冲区
+        self.session_buffer: str = ''
+        # 当前会话ID (用于追加模式下的消息分组)
+        self.current_session_id: int = 1
+    
+    def new_session(self) -> int:
+        """开始新会话，返回新的会话ID"""
+        self.current_session_id += 1
+        self.session_buffer = ''
+        return self.current_session_id
     
     def refresh_pairing_code(self) -> str:
         """刷新配对码，返回新的配对码"""

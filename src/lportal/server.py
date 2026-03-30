@@ -114,7 +114,8 @@ class Server:
                     "id": e.id,
                     "text": e.text,
                     "time": e.time.isoformat(),
-                    "preview": e.preview
+                    "preview": e.preview,
+                    "session_id": e.session_id
                 }
                 for e in self.config.history.list()
             ]
@@ -139,6 +140,8 @@ class Server:
                             await self._handle_file_chunk(data, ws)
                         elif msg_type == "file_end":
                             await self._handle_file_end(data, ws)
+                        elif msg_type == "command":
+                            await self._handle_command(data, ws)
                             
                     except json.JSONDecodeError:
                         pass
@@ -157,14 +160,31 @@ class Server:
             return
         
         # 1. 存入历史
-        entry = self.config.history.add(text)
+        # 覆盖模式：每条消息使用独立 session_id
+        # 追加模式：使用当前 session_id
+        if self.config.copy_mode == 'cover':
+            self.config.new_session()
+        session_id = self.config.current_session_id
+        entry = self.config.history.add(text, session_id)
         
         # 2. 自动复制（如果开启）
         auto_copied = False
         if self.config.auto_copy:
             try:
+                # 根据复制模式决定复制内容
+                if self.config.copy_mode == 'add':
+                    # 追加模式：追加到缓冲区
+                    if self.config.session_buffer:
+                        self.config.session_buffer += '\n' + text
+                    else:
+                        self.config.session_buffer = text
+                    copy_text = self.config.session_buffer
+                else:
+                    # 覆盖模式：直接复制新消息（原有行为）
+                    copy_text = text
+                
                 await asyncio.get_event_loop().run_in_executor(
-                    None, pyperclip.copy, text
+                    None, pyperclip.copy, copy_text
                 )
                 auto_copied = True
             except Exception as e:
@@ -188,7 +208,8 @@ class Server:
                 "text": entry.text,
                 "time": entry.time.isoformat(),
                 "preview": entry.preview,
-                "client_id": client_id
+                "client_id": client_id,
+                "session_id": entry.session_id
             }
         }
         
@@ -275,6 +296,37 @@ class Server:
                 "file_id": file_id,
                 "error": error
             })
+    
+    async def _handle_command(self, data: dict, sender: web.WebSocketResponse) -> None:
+        """处理客户端命令"""
+        command = data.get("command", "")
+        
+        if command == "new_session":
+            # 重置会话缓冲区
+            if self.config.copy_mode == 'add':
+                # 生成新的会话ID
+                self.config.new_session()
+                await sender.send_json({
+                    "type": "session_reset",
+                    "message": "会话已刷新"
+                })
+        elif command == "set_mode":
+            # 设置复制模式
+            mode = data.get("mode", "")
+            if mode in ("cover", "add"):
+                old_mode = self.config.copy_mode
+                if old_mode != mode:
+                    self.config.copy_mode = mode
+                    # 切换模式时重置会话，确保新消息与旧消息分开
+                    self.config.new_session()
+                    # 切换到覆盖模式时清空会话缓冲区
+                    if mode == "cover":
+                        self.config.session_buffer = ""
+                await sender.send_json({
+                    "type": "mode_changed",
+                    "mode": mode,
+                    "message": f"已切换到{'追加' if mode == 'add' else '覆盖'}模式"
+                })
     
     async def start(self) -> int:
         """启动服务器，返回实际使用的端口"""

@@ -13,6 +13,7 @@ class MessageEntry:
     text: str
     time: datetime
     preview: str
+    session_id: int = 1  # 所属会话ID（追加模式下用于分组）
 
 
 class History:
@@ -23,7 +24,7 @@ class History:
         self._counter = 0
         self._maxsize = maxsize
     
-    def add(self, text: str) -> MessageEntry:
+    def add(self, text: str, session_id: int = 1) -> MessageEntry:
         """添加新消息，返回创建的条目"""
         self._counter += 1
         preview = text[:50] + "..." if len(text) > 50 else text
@@ -31,7 +32,8 @@ class History:
             id=self._counter,
             text=text,
             time=datetime.now(),
-            preview=preview
+            preview=preview,
+            session_id=session_id
         )
         self._queue.appendleft(entry)  # 新消息在前
         return entry
