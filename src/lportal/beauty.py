@@ -20,6 +20,8 @@ class BeautyEntry:
     result: str  # 美化后的文本
     time: datetime
     preview: str
+    device_name: str = ""  # 关联设备名称
+    login_id: str = ""     # 关联设备 login_id
 
 
 class BeautyHistory:
@@ -29,7 +31,13 @@ class BeautyHistory:
         self._queue: deque[BeautyEntry] = deque(maxlen=maxsize)
         self._counter = 0
 
-    def add(self, original: str, result: str) -> BeautyEntry:
+    def add(
+        self,
+        original: str,
+        result: str,
+        device_name: str = "",
+        login_id: str = ""
+    ) -> BeautyEntry:
         """添加新记录，返回创建的条目"""
         self._counter += 1
         preview = result[:50] + "..." if len(result) > 50 else result
@@ -38,7 +46,9 @@ class BeautyHistory:
             text=original,
             result=result,
             time=datetime.now(),
-            preview=preview
+            preview=preview,
+            device_name=device_name,
+            login_id=login_id
         )
         self._queue.appendleft(entry)
         return entry

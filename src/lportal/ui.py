@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from .beauty import BeautyEntry
     from .config import ServerConfig
     from .history import MessageEntry
+    from .server import DeviceInfo
 
 
 console = Console()
@@ -31,7 +32,7 @@ def print_banner(config: "ServerConfig") -> None:
     console.print("提示: 使用 /qr 命令显示二维码")
     console.print()
     console.print("-" * 40)
-    console.print("可用命令: /auto, /copy, /list, /status, /open, /qr, /rq, /mode, /new-session, /beauty, /beauty-history, /beauty-copy, /exit, /help")
+    console.print("可用命令: /auto, /copy, /list, /status, /open, /qr, /rq, /mode, /new-session, /beauty, /beauty-history, /beauty-copy, /devices, /link, /unlink, /exit, /help")
     console.print()
 
 
@@ -157,44 +158,45 @@ def print_session_list(entries: List["MessageEntry"]) -> None:
     
     console.print()
     
-    # 固定预览宽度
-    PREVIEW_MAX_WIDTH = 40
+    PREVIEW_MAX_WIDTH = 28
+    SOURCE_MAX_WIDTH = 20
     
     # 打印表头
-    console.print("ID   预览                                        时间    ", style="dim")
-    console.print("-" * 61, style="dim")
+    console.print(f"{'ID':<4} {'预览':<{PREVIEW_MAX_WIDTH}} {'来源':<{SOURCE_MAX_WIDTH}} {'时间':<8}", style="dim")
+    console.print("-" * (4 + 1 + PREVIEW_MAX_WIDTH + 1 + SOURCE_MAX_WIDTH + 1 + 8), style="dim")
     
     # 按 session_id 分组（entries 是按时间倒序的）
     from itertools import groupby
     
-    # 按 session_id 分组
     sessions = []
     for session_id, group in groupby(entries, key=lambda e: e.session_id):
         msgs = list(group)
         sessions.append({
-            'id': msgs[0].id,  # 取最新的消息 ID
+            'id': msgs[0].id,
             'count': len(msgs),
-            'text': ' | '.join(m.text for m in reversed(msgs)),  # 按时间正序拼接
-            'time': msgs[0].time,  # 最新时间
-            'session_id': session_id
+            'text': ' | '.join(m.text for m in reversed(msgs)),
+            'time': msgs[0].time,
+            'session_id': session_id,
+            'device_name': msgs[0].device_name,
+            'login_id': msgs[0].login_id
         })
     
-    # 打印每个 session
     for session in sessions:
         time_str = session['time'].strftime("%H:%M:%S")
         
-        # 构建预览文本
         if session['count'] > 1:
             preview_text = f"[{session['count']}条] {session['text']}"
         else:
             preview_text = session['text']
         
-        # 截断预览
         preview = _truncate_text(preview_text, PREVIEW_MAX_WIDTH)
-        preview_width = _text_width(preview)
-        padding = " " * (PREVIEW_MAX_WIDTH - preview_width)
+        preview_padding = " " * (PREVIEW_MAX_WIDTH - _text_width(preview))
         
-        row = f"{session['id']:<4} {preview}{padding} {time_str}"
+        source_text = f"{session['device_name']}-{session['login_id']}" if session['login_id'] else "-"
+        source = _truncate_text(source_text, SOURCE_MAX_WIDTH)
+        source_padding = " " * (SOURCE_MAX_WIDTH - _text_width(source))
+        
+        row = f"{session['id']:<4} {preview}{preview_padding} {source}{source_padding} {time_str}"
         console.print(row)
     
     console.print()
@@ -207,17 +209,22 @@ def print_beauty_list(entries: List["BeautyEntry"]) -> None:
         return
     
     console.print()
-    PREVIEW_MAX_WIDTH = 40
+    PREVIEW_MAX_WIDTH = 28
+    SOURCE_MAX_WIDTH = 20
     
-    console.print("ID   预览                                        时间    ", style="dim")
-    console.print("-" * 61, style="dim")
+    console.print(f"{'ID':<4} {'预览':<{PREVIEW_MAX_WIDTH}} {'来源':<{SOURCE_MAX_WIDTH}} {'时间':<8}", style="dim")
+    console.print("-" * (4 + 1 + PREVIEW_MAX_WIDTH + 1 + SOURCE_MAX_WIDTH + 1 + 8), style="dim")
     
     for entry in entries:
         time_str = entry.time.strftime("%H:%M:%S")
         preview = _truncate_text(entry.preview, PREVIEW_MAX_WIDTH)
-        preview_width = _text_width(preview)
-        padding = " " * (PREVIEW_MAX_WIDTH - preview_width)
-        row = f"{entry.id:<4} {preview}{padding} {time_str}"
+        preview_padding = " " * (PREVIEW_MAX_WIDTH - _text_width(preview))
+        
+        source_text = f"{entry.device_name}-{entry.login_id}" if entry.login_id else "-"
+        source = _truncate_text(source_text, SOURCE_MAX_WIDTH)
+        source_padding = " " * (SOURCE_MAX_WIDTH - _text_width(source))
+        
+        row = f"{entry.id:<4} {preview}{preview_padding} {source}{source_padding} {time_str}"
         console.print(row)
     
     console.print()
@@ -228,13 +235,32 @@ def print_message(msg: str, style: str = "") -> None:
     print(msg)
 
 
+def print_devices(devices: List["DeviceInfo"]) -> None:
+    """打印在线设备列表"""
+    if not devices:
+        console.print("暂无在线设备")
+        return
+    
+    console.print()
+    console.print(f"{'设备名称':<16} {'login_id':<10} {'登录时间':<20}", style="dim")
+    console.print("-" * 50, style="dim")
+    
+    for info in devices:
+        time_str = info.login_time.strftime("%Y-%m-%d %H:%M:%S")
+        name = _truncate_text(info.device_name, 16)
+        name_padding = " " * (16 - _text_width(name))
+        console.print(f"{name}{name_padding} {info.login_id:<10} {time_str}")
+    
+    console.print()
+
+
 def print_new_message(entry: "MessageEntry", auto_copied: bool = False) -> None:
     """打印新消息通知 - 单行显示，限制10个全角字符"""
     time_str = entry.time.strftime("%H:%M:%S")
     status = " [auto]" if auto_copied else ""
-    # 限制10个全角字符（20个半角）
+    source = f"[{entry.device_name}]" if entry.device_name else ""
     preview = _truncate_text(entry.text, 20)
-    print(f"[{time_str}] 收到消息{status}: {preview}")
+    print(f"[{time_str}] 收到消息{status} {source}: {preview}")
 
 
 def print_help() -> str:
@@ -254,6 +280,9 @@ Local Portal 命令帮助
 /beauty [N]            使用 LLM 美化第 N 条历史消息（默认最近一条）
 /beauty-history        查看最近 10 次文字美化任务
 /beauty-copy [N]       复制第 N 次美化结果（默认最近一条）
+/devices               查看所有已登录设备
+/link <name|id>        进入与指定设备的会话模式
+/unlink                退出设备会话模式
 /new-session           追加模式下刷新会话，清空缓冲区
 /help                  显示此帮助信息
 /exit                  退出程序

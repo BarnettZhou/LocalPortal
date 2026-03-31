@@ -3,8 +3,11 @@
 import asyncio
 import base64
 import json
+import secrets
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Optional, Set
+from typing import Optional
 
 import pyperclip
 from aiohttp import web
@@ -13,6 +16,15 @@ from .config import ServerConfig
 from .file_transfer import get_file_transfer_manager
 from .history import History, MessageEntry
 from .qr import generate_qr_html, generate_qr_png, get_local_ip
+
+
+@dataclass
+class DeviceInfo:
+    """设备信息"""
+    device_name: str
+    login_id: str
+    login_time: datetime
+    ws: Optional[web.WebSocketResponse]
 
 
 class Server:
@@ -29,7 +41,12 @@ class Server:
         self.terminal_queue: asyncio.Queue = asyncio.Queue()
         
         # 已验证的客户端（通过配对码验证）
-        self.verified_clients: Set[web.WebSocketResponse] = set()
+        self.verified_clients: set = set()
+        
+        # 设备管理
+        self.devices: dict[str, DeviceInfo] = {}  # login_id -> DeviceInfo
+        self.ws_to_login_id: dict[web.WebSocketResponse, str] = {}  # ws -> login_id
+        self.device_registry: dict[str, str] = {}  # device_name -> login_id（断线重连复用）
     
     def _setup_routes(self) -> None:
         """设置 HTTP 路由"""
@@ -48,80 +65,173 @@ class Server:
     
     async def handle_qr_page(self, request: web.Request) -> web.Response:
         """二维码页面 - 带配对码"""
-        # 生成带配对码的 URL
         url_with_code = self.config.qr_url
         html = generate_qr_html(url_with_code)
         return web.Response(text=html, content_type='text/html')
     
     async def handle_qr_image(self, request: web.Request) -> web.Response:
         """二维码图片接口 - 带配对码"""
-        # 生成带配对码的 URL
         url_with_code = self.config.qr_url
         img_buffer = generate_qr_png(url_with_code)
         return web.Response(body=img_buffer, content_type='image/png')
+    
+    def _generate_login_id(self) -> str:
+        """生成 8 位 login_id"""
+        return secrets.token_hex(4)
+    
+    def _get_online_device_names(self) -> set[str]:
+        """获取当前在线的设备名称"""
+        return {
+            info.device_name
+            for info in self.devices.values()
+            if info.ws is not None and not info.ws.closed
+        }
+    
+    def get_device_by_ws(self, ws: web.WebSocketResponse) -> Optional[DeviceInfo]:
+        """通过 WebSocket 连接获取设备信息"""
+        login_id = self.ws_to_login_id.get(ws)
+        if login_id:
+            return self.devices.get(login_id)
+        return None
+    
+    async def send_to_device(self, login_id: str, message: dict) -> bool:
+        """向指定设备发送消息"""
+        device = self.devices.get(login_id)
+        if device and device.ws and not device.ws.closed:
+            try:
+                await device.ws.send_json(message)
+                return True
+            except Exception:
+                pass
+        return False
+    
+    async def broadcast(self, message: dict) -> None:
+        """广播消息给所有已验证客户端"""
+        for client in list(self.verified_clients):
+            if not client.closed:
+                try:
+                    await client.send_json(message)
+                except Exception:
+                    pass
     
     async def handle_websocket(self, request: web.Request) -> web.WebSocketResponse:
         """WebSocket 连接处理"""
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         
-        # 1. 等待配对码验证（循环直到验证成功或超时）
+        # 1. 等待配对码验证
         authenticated = False
-        for attempt in range(3):  # 最多允许 3 次验证尝试
+        for attempt in range(3):
             try:
-                # 设置超时 10 秒等待配对码
                 auth_msg = await asyncio.wait_for(ws.receive(), timeout=10.0)
                 if auth_msg.type == web.WSMsgType.TEXT:
                     data = json.loads(auth_msg.data)
                     if data.get("type") == "auth":
                         code = data.get("code", "")
                         if code != self.config.pairing_code:
-                            # 配对码错误，不关闭连接，让前端重新输入
                             await ws.send_json({"type": "auth_failed", "message": "配对码错误"})
-                            continue  # 继续循环，等待重新输入
-                        # 配对码正确
+                            continue
                         await ws.send_json({"type": "auth_success"})
                         authenticated = True
                         break
                     else:
-                        # 未提供配对码，继续监听
                         await ws.send_json({"type": "auth_failed", "message": "请先发送配对码"})
                         continue
                 else:
-                    # 非文本消息，继续监听
                     continue
             except asyncio.TimeoutError:
-                # 超时，发送提示但不关闭
                 await ws.send_json({"type": "auth_failed", "message": "连接超时，请重新输入配对码"})
                 continue
             except json.JSONDecodeError:
-                # 解析错误，继续监听
                 continue
         
-        # 验证失败，关闭连接
         if not authenticated:
             await ws.close()
             return ws
         
-        # 2. 验证通过，注册客户端
+        # 2. 等待设备注册
+        registered = False
+        device_info: Optional[DeviceInfo] = None
+        for attempt in range(3):
+            try:
+                reg_msg = await asyncio.wait_for(ws.receive(), timeout=10.0)
+                if reg_msg.type == web.WSMsgType.TEXT:
+                    data = json.loads(reg_msg.data)
+                    if data.get("type") == "register":
+                        device_name = data.get("device_name", "").strip()
+                        if not device_name:
+                            await ws.send_json({"type": "register_failed", "message": "设备名称不能为空"})
+                            continue
+                        
+                        # 检查是否有同名设备在线
+                        online_names = self._get_online_device_names()
+                        if device_name in online_names:
+                            await ws.send_json({"type": "register_failed", "message": f"设备名称 '{device_name}' 已被使用"})
+                            continue
+                        
+                        # 复用或生成 login_id
+                        if device_name in self.device_registry:
+                            login_id = self.device_registry[device_name]
+                        else:
+                            login_id = self._generate_login_id()
+                            while login_id in self.devices:
+                                login_id = self._generate_login_id()
+                            self.device_registry[device_name] = login_id
+                        
+                        device_info = DeviceInfo(
+                            device_name=device_name,
+                            login_id=login_id,
+                            login_time=datetime.now(),
+                            ws=ws
+                        )
+                        self.devices[login_id] = device_info
+                        self.ws_to_login_id[ws] = login_id
+                        
+                        await ws.send_json({
+                            "type": "register_success",
+                            "login_id": login_id,
+                            "device_name": device_name
+                        })
+                        registered = True
+                        break
+                    else:
+                        await ws.send_json({"type": "register_failed", "message": "请先发送设备注册信息"})
+                        continue
+                else:
+                    continue
+            except asyncio.TimeoutError:
+                await ws.send_json({"type": "register_failed", "message": "注册超时，请重新连接"})
+                continue
+            except json.JSONDecodeError:
+                continue
+        
+        if not registered or device_info is None:
+            await ws.close()
+            return ws
+        
+        # 3. 注册客户端到在线集合
         self.config.connected_clients.add(ws)
         self.verified_clients.add(ws)
         
         try:
-            # 3. 发送历史记录
-            history_data = [
+            # 4. 发送历史记录（只发送与该设备相关的）
+            current_login_id = device_info.login_id
+            filtered_history = [
                 {
                     "id": e.id,
                     "text": e.text,
                     "time": e.time.isoformat(),
                     "preview": e.preview,
-                    "session_id": e.session_id
+                    "session_id": e.session_id,
+                    "device_name": e.device_name,
+                    "login_id": e.login_id
                 }
                 for e in self.config.history.list()
+                if e.login_id == current_login_id or e.target_login_id == current_login_id
             ]
-            await ws.send_json({"type": "history", "data": history_data})
+            await ws.send_json({"type": "history", "data": filtered_history})
             
-            # 4. 监听消息
+            # 5. 监听消息
             async for msg in ws:
                 if msg.type == web.WSMsgType.TEXT:
                     try:
@@ -148,39 +258,46 @@ class Server:
                 elif msg.type == web.WSMsgType.ERROR:
                     break
         finally:
-            # 5. 注销客户端
+            # 6. 注销客户端（保留 device_registry 和 devices 记录以便重连）
             self.config.connected_clients.discard(ws)
             self.verified_clients.discard(ws)
+            if ws in self.ws_to_login_id:
+                login_id = self.ws_to_login_id.pop(ws)
+                if login_id in self.devices:
+                    self.devices[login_id].ws = None
         
         return ws
     
     async def _handle_text_message(self, text: str, sender: web.WebSocketResponse, client_id: str = None) -> None:
-        """处理文本消息并广播给所有已验证客户端"""
+        """处理文本消息并回推给发送设备"""
         if not text:
             return
         
+        device = self.get_device_by_ws(sender)
+        device_name = device.device_name if device else ""
+        login_id = device.login_id if device else ""
+        
         # 1. 存入历史
-        # 覆盖模式：每条消息使用独立 session_id
-        # 追加模式：使用当前 session_id
         if self.config.copy_mode == 'cover':
             self.config.new_session()
         session_id = self.config.current_session_id
-        entry = self.config.history.add(text, session_id)
+        entry = self.config.history.add(
+            text, session_id,
+            device_name=device_name,
+            login_id=login_id
+        )
         
         # 2. 自动复制（如果开启）
         auto_copied = False
         if self.config.auto_copy:
             try:
-                # 根据复制模式决定复制内容
                 if self.config.copy_mode == 'add':
-                    # 追加模式：追加到缓冲区
                     if self.config.session_buffer:
                         self.config.session_buffer += '\n' + text
                     else:
                         self.config.session_buffer = text
                     copy_text = self.config.session_buffer
                 else:
-                    # 覆盖模式：直接复制新消息（原有行为）
                     copy_text = text
                 
                 await asyncio.get_event_loop().run_in_executor(
@@ -200,7 +317,7 @@ class Server:
             "auto_copied": auto_copied
         })
         
-        # 4. 广播给所有已验证客户端（包括发送者）
+        # 4. 只回推给发送设备
         message_data = {
             "type": "new",
             "data": {
@@ -209,16 +326,14 @@ class Server:
                 "time": entry.time.isoformat(),
                 "preview": entry.preview,
                 "client_id": client_id,
-                "session_id": entry.session_id
+                "session_id": entry.session_id,
+                "device_name": entry.device_name,
+                "login_id": entry.login_id
             }
         }
         
-        for client in list(self.verified_clients):
-            if not client.closed:
-                try:
-                    await client.send_json(message_data)
-                except Exception:
-                    pass
+        if device:
+            await self.send_to_device(device.login_id, message_data)
     
     async def _handle_file_start(self, data: dict, sender: web.WebSocketResponse) -> None:
         """处理文件传输开始"""
@@ -252,7 +367,6 @@ class Server:
         success, error = ftm.receive_chunk(file_id, chunk_data, index)
         
         if success:
-            # 发送进度
             received, total = ftm.get_transfer_progress(file_id)
             await sender.send_json({
                 "type": "file_progress",
@@ -275,7 +389,6 @@ class Server:
         save_path, error = ftm.complete_transfer(file_id)
         
         if save_path:
-            # 通知发送者
             await sender.send_json({
                 "type": "file_saved",
                 "file_id": file_id,
@@ -283,7 +396,6 @@ class Server:
                 "size": save_path.stat().st_size
             })
             
-            # 通知终端
             await self.terminal_queue.put({
                 "type": "file_received",
                 "name": save_path.name,
@@ -297,38 +409,61 @@ class Server:
                 "error": error
             })
     
-    async def broadcast(self, message: dict) -> None:
-        """广播消息给所有已验证客户端"""
-        for client in list(self.verified_clients):
-            if not client.closed:
-                try:
-                    await client.send_json(message)
-                except Exception:
-                    pass
+    async def send_server_text(self, text: str, target_login_id: str) -> Optional[MessageEntry]:
+        """服务端主动向指定设备发送文本消息"""
+        if not text or not target_login_id:
+            return None
+        
+        # 服务端消息使用独立的 session_id（负数，避免与设备 session 冲突）
+        session_id = -self.config.history._counter - 1
+        entry = self.config.history.add(
+            text, session_id,
+            device_name="服务端",
+            login_id="server",
+            target_login_id=target_login_id
+        )
+        
+        message_data = {
+            "type": "server_text",
+            "data": {
+                "id": entry.id,
+                "text": entry.text,
+                "time": entry.time.isoformat(),
+                "preview": entry.preview,
+                "session_id": entry.session_id,
+                "device_name": entry.device_name,
+                "login_id": entry.login_id
+            }
+        }
+        
+        await self.send_to_device(target_login_id, message_data)
+        
+        # 通知终端显示
+        await self.terminal_queue.put({
+            "type": "server_message_sent",
+            "entry": entry
+        })
+        
+        return entry
     
     async def _handle_command(self, data: dict, sender: web.WebSocketResponse) -> None:
         """处理客户端命令"""
         command = data.get("command", "")
         
         if command == "new_session":
-            # 重置会话缓冲区
             if self.config.copy_mode == 'add':
-                # 生成新的会话ID
                 self.config.new_session()
                 await sender.send_json({
                     "type": "session_reset",
                     "message": "会话已刷新"
                 })
         elif command == "set_mode":
-            # 设置复制模式
             mode = data.get("mode", "")
             if mode in ("cover", "add"):
                 old_mode = self.config.copy_mode
                 if old_mode != mode:
                     self.config.copy_mode = mode
-                    # 切换模式时重置会话，确保新消息与旧消息分开
                     self.config.new_session()
-                    # 切换到覆盖模式时清空会话缓冲区
                     if mode == "cover":
                         self.config.session_buffer = ""
                 await self.broadcast({
@@ -342,7 +477,6 @@ class Server:
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
         
-        # 尝试绑定端口，如果被占用则递增
         port = self.config.port
         max_attempts = 10
         
@@ -362,7 +496,6 @@ class Server:
     
     async def stop(self, force: bool = True) -> None:
         """停止服务器"""
-        # 1. 先通知所有客户端服务即将关闭
         if self.verified_clients:
             close_msg = {"type": "server_close", "message": "服务已关闭"}
             await asyncio.gather(
@@ -376,7 +509,6 @@ class Server:
         self.verified_clients.clear()
         self.config.connected_clients.clear()
         
-        # 2. 停止 HTTP 服务
         if self.site:
             await self.site.stop()
         if self.runner:

@@ -141,7 +141,7 @@ uv build
 7. **beauty.py**: 文本美化模块，通过 OpenAI 兼容接口调用 LLM，支持流式输出和思维链显示
 8. **qr.py**: 二维码生成、局域网 IP 获取、浏览器唤起
 9. **ui.py**: 终端 UI 输出，使用 rich 库美化
-10. **static/index.html**: Web 端界面，支持复制模式切换和会话管理
+10. **static/index.html**: Web 端界面，支持复制模式切换、会话管理、设备注册
 11. **prompt/text-beauty.md**: 文本美化的系统提示词
 
 ### WebSocket 通信协议
@@ -149,6 +149,7 @@ uv build
 **客户端 → 服务端**：
 ```typescript
 { type: 'auth'; code: string }           // 配对码验证
+{ type: 'register'; device_name: string }  // 设备注册
 { type: 'text'; content: string; client_id?: string }
 { type: 'file_start'; name: string; size: number; mime_type: string }
 { type: 'file_chunk'; file_id: string; index: number; data: string }
@@ -161,14 +162,17 @@ uv build
 ```typescript
 { type: 'auth_success' }                 // 验证成功
 { type: 'auth_failed'; message: string } // 验证失败
-{ type: 'history'; data: MessageEntry[] }  // 包含 session_id
-{ type: 'new'; data: MessageEntry }        // 包含 session_id
+{ type: 'register_success'; login_id: string; device_name: string }  // 注册成功
+{ type: 'register_failed'; message: string }  // 注册失败
+{ type: 'history'; data: MessageEntry[] }  // 仅包含该设备相关的消息
+{ type: 'new'; data: MessageEntry }        // 仅发送给消息来源设备
 { type: 'file_accept'; file_id: string }
 { type: 'file_progress'; file_id: string; received: number; total: number }
 { type: 'file_saved'; file_id: string; path: string; size: number }
 { type: 'file_error'; file_id: string; error: string }
 { type: 'session_reset'; message: string }   // 追加模式下会话已刷新
 { type: 'mode_changed'; mode: string; message: string }  // 模式已切换
+{ type: 'server_text'; data: MessageEntry }     // 服务端主动向设备发送的文本
 { type: 'server_close'; message: string }
 ```
 
@@ -193,11 +197,14 @@ uv build
 | `/open` | 浏览器打开主页面 |
 | `/qrcode` (`/qr`) | 显示 ASCII 二维码（扫码连接） |
 | `/downloads` | 打开下载文件夹 |
-| `/mode` | 切换复制模式 (cover/add) |
+| `/mode` | 切换复制模式 (cover/add)，广播通知所有在线设备 |
 | `/new-session` | 追加模式下刷新会话 |
 | `/beauty [N]` | 使用 LLM 美化第 N 条历史消息（默认最近一条） |
 | `/beauty-history` | 查看最近 10 次文字美化任务 |
 | `/beauty-copy [N]` | 复制第 N 次美化结果（默认最近一条） |
+| `/devices` | 查看所有已登录设备 |
+| `/link <name\|id>` | 进入与指定设备的会话模式 |
+| `/unlink` | 退出设备会话模式 |
 | `/refresh-qrcode` (`/rq`) | 刷新配对码（断开所有客户端） |
 | `/help` | 显示帮助 |
 | `/exit` | 退出程序 |
@@ -226,7 +233,8 @@ uv build
 ### 安全机制
 
 - **配对码验证**：4 位数字随机码，客户端连接时必须验证
-- **超时机制**：配对码验证超时 10 秒
+- **设备注册**：配对码验证后需输入设备名称，不可与在线设备重名
+- **超时机制**：配对码验证和设备注册各超时 10 秒
 - **刷新配对码**：`/refresh-qrcode` 命令可刷新配对码，强制断开所有客户端
 - **文件类型白名单**：只允许图片（jpeg/png/gif/webp）和视频（mp4/mov/webm）
 - **文件大小限制**：默认最大 100MB
@@ -241,6 +249,22 @@ uv build
 - **正文显示**：`content` 字段以白色显示
 - **自动复制**：LLM 处理完成后，正文内容自动复制到剪贴板
 - **历史记录**：内存存储最近 10 次美化结果，通过 `/beauty-history` 和 `/beauty-copy` 查看/复制
+
+### 设备管理与消息隔离
+
+- **设备注册**：`Server` 维护 `devices`、`ws_to_login_id`、`device_registry` 三个映射表
+- **login_id 复用**：`device_registry` 按 `device_name` 持久化映射到 `login_id`，服务端未重启时断线重连复用原 ID
+- **消息隔离**：每个设备只能收到自己发送的 `new` 消息，历史记录也仅下发与该 `login_id` 相关的条目
+- **服务端定向发送**：`send_to_device(login_id, message)` 支持服务端主动向指定设备发消息
+- **自动恢复登录**：Web 端通过 `localStorage` 保存 `device_name` 和 `login_id`，刷新页面后自动重新注册
+
+### 设备会话模式
+
+- **进入会话**：`/link <device_name 或 login_id>` 查找在线设备，进入专属会话模式
+- **会话提示符**：`PortalApp` 维护 `linked_device_name` 和 `linked_login_id`，动态生成 `lportal[设备名]>` 提示符
+- **直接发送**：会话模式下非斜杠输入直接调用 `server.send_server_text()` 发送到设备
+- **消息标记**：服务端发送的消息 `login_id="server"`，`target_login_id` 指向目标设备，使用负数的 `session_id` 确保独立显示块
+- **退出会话**：`/unlink` 清除 link 状态，恢复普通模式
 
 ### 复制模式与 Session 管理
 
@@ -257,7 +281,7 @@ uv build
 
 **模式切换时的行为**：
 - 切换模式会自动调用 `new_session()`，确保新旧消息分开
-- Web 端和 CLI 端模式同步，通过 `set_mode` 命令通知服务端
+- Web 端和 CLI 端模式同步，通过 `set_mode` 命令通知服务端，服务端广播 `mode_changed` 给所有在线设备
 
 ## Testing
 
@@ -305,8 +329,10 @@ uv tool install -e .
 7. **下载目录**：默认保存到 `~/Downloads`，可通过 `LPORTAL_DOWNLOAD_DIR` 环境变量自定义
 8. **文件传输**：支持图片和视频，最大 100MB，分 64KB 切片传输
 9. **复制模式**：CLI 和 Web 端都支持切换覆盖/追加模式，切换时自动刷新 session
-10. **Web 端 UI**：顶部工具栏可切换模式，追加模式下显示"新会话"按钮
-11. **LLM 配置**：文本美化依赖 `.env` 中的 OpenAI 兼容接口配置，未配置时 `/beauty` 命令会提示错误
+10. **Web 端 UI**：顶部工具栏可切换模式，追加模式下显示"新会话"按钮，注册成功后显示当前 `login_id`
+11. **自动恢复登录**：Web 端通过 localStorage 保存设备信息，刷新页面后自动完成注册流程
+12. **设备会话模式**：服务端可通过 `/link` 进入与指定设备的专属会话，直接输入文字即可推送
+13. **LLM 配置**：文本美化依赖 `.env` 中的 OpenAI 兼容接口配置，未配置时 `/beauty` 命令会提示错误
 
 ## TODO (from README)
 

@@ -14,6 +14,9 @@ class MessageEntry:
     time: datetime
     preview: str
     session_id: int = 1  # 所属会话ID（追加模式下用于分组）
+    device_name: str = ""  # 发送设备名称
+    login_id: str = ""     # 发送设备 login_id
+    target_login_id: str = ""  # 接收方 login_id（预留，用于服务端定向下发）
 
 
 class History:
@@ -24,7 +27,14 @@ class History:
         self._counter = 0
         self._maxsize = maxsize
     
-    def add(self, text: str, session_id: int = 1) -> MessageEntry:
+    def add(
+        self,
+        text: str,
+        session_id: int = 1,
+        device_name: str = "",
+        login_id: str = "",
+        target_login_id: str = ""
+    ) -> MessageEntry:
         """添加新消息，返回创建的条目"""
         self._counter += 1
         preview = text[:50] + "..." if len(text) > 50 else text
@@ -33,7 +43,10 @@ class History:
             text=text,
             time=datetime.now(),
             preview=preview,
-            session_id=session_id
+            session_id=session_id,
+            device_name=device_name,
+            login_id=login_id,
+            target_login_id=target_login_id
         )
         self._queue.appendleft(entry)  # 新消息在前
         return entry

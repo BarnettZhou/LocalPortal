@@ -26,9 +26,11 @@ class PortalApp:
     def __init__(self, config: ServerConfig):
         self.config = config
         self.server = Server(config)
-        self.cmd_handler = CommandHandler(config, self.server)
-        self.session = PromptSession("lportal> ")
+        self.cmd_handler = CommandHandler(config, self.server, self)
+        self.session = PromptSession()
         self.running = True
+        self.linked_device_name: str = ""
+        self.linked_login_id: str = ""
     
     async def run(self) -> None:
         """主运行循环"""
@@ -68,9 +70,21 @@ class PortalApp:
             while self.running:
                 try:
                     with patch_stdout():
-                        cmd = await self.session.prompt_async()
+                        prompt_text = f"lportal[{self.linked_device_name}]> " if self.linked_device_name else "lportal> "
+                        cmd = await self.session.prompt_async(prompt_text)
                     
                     if not cmd.strip():
+                        continue
+                    
+                    # 如果处于 link 模式且输入不是命令，则作为消息发送
+                    if self.linked_login_id and not cmd.startswith("/"):
+                        entry = await self.server.send_server_text(cmd.strip(), self.linked_login_id)
+                        if entry:
+                            from datetime import datetime
+                            time_str = datetime.now().strftime("%H:%M:%S")
+                            print_message(f"[{time_str}] -> {self.linked_device_name}: {entry.preview[:30]}...")
+                        else:
+                            print_message("[!] 发送失败，设备可能已离线")
                         continue
                     
                     result = await self.cmd_handler.handle(cmd)
@@ -117,6 +131,13 @@ class PortalApp:
                     path = msg.get("path", "")
                     time_str = datetime.now().strftime("%H:%M:%S")
                     print_message(f"[{time_str}] 收到文件 [已保存]: {path}")
+                
+                elif msg["type"] == "server_message_sent":
+                    entry = msg["entry"]
+                    from datetime import datetime
+                    time_str = datetime.now().strftime("%H:%M:%S")
+                    preview = entry.preview[:30] + "..." if len(entry.preview) > 30 else entry.preview
+                    print_message(f"[{time_str}] -> 设备: {preview}")
             
             except Exception:
                 continue

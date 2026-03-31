@@ -11,15 +11,17 @@ from .ui import console, print_beauty_list, print_help
 
 if TYPE_CHECKING:
     from .config import ServerConfig
+    from .main import PortalApp
     from .server import Server
 
 
 class CommandHandler:
     """命令处理器"""
     
-    def __init__(self, config: "ServerConfig", server: "Server"):
+    def __init__(self, config: "ServerConfig", server: "Server", app: Optional["PortalApp"] = None):
         self.config = config
         self.server = server
+        self.app = app
     
     async def handle(self, cmd_line: str) -> str:
         """
@@ -64,6 +66,12 @@ class CommandHandler:
                 return self._handle_beauty_history()
             case "/beauty-copy":
                 return self._handle_beauty_copy(args)
+            case "/devices":
+                return self._handle_devices()
+            case "/link":
+                return await self._handle_link(args)
+            case "/unlink":
+                return self._handle_unlink()
             case _:
                 return f"[?] 未知命令: {cmd}，输入 /help 查看可用命令"
     
@@ -254,8 +262,12 @@ class CommandHandler:
             # 调用 LLM 进行流式美化
             result = await beautify_text(original_text, console)
             
-            # 保存到美化历史
-            self.config.beauty_history.add(original_text, result)
+            # 保存到美化历史（继承原消息的设备信息）
+            self.config.beauty_history.add(
+                original_text, result,
+                device_name=entry.device_name,
+                login_id=entry.login_id
+            )
             
             # 复制到剪贴板
             pyperclip.copy(result)
@@ -292,6 +304,55 @@ class CommandHandler:
         
         except (ValueError, IndexError) as e:
             return f"[!] {e}"
+    
+    def _handle_devices(self) -> str:
+        """处理 /devices 命令 - 查看已登录设备"""
+        from .ui import print_devices
+        online_devices = [
+            info for info in self.server.devices.values()
+            if info.ws is not None and not info.ws.closed
+        ]
+        if not online_devices:
+            return "暂无在线设备"
+        print_devices(online_devices)
+        return ""
+    
+    async def _handle_link(self, args: list[str]) -> str:
+        """处理 /link 命令 - 进入设备会话模式"""
+        if not args:
+            if self.app and self.app.linked_device_name:
+                return f"当前已链接设备: {self.app.linked_device_name} ({self.app.linked_login_id})"
+            return "用法: /link <device_name 或 login_id>"
+        
+        target = args[0].strip()
+        
+        # 先按 login_id 精确匹配
+        device = self.server.devices.get(target)
+        if not device:
+            # 再按设备名称匹配在线设备
+            for info in self.server.devices.values():
+                if info.device_name == target and info.ws is not None and not info.ws.closed:
+                    device = info
+                    break
+        
+        if not device or not device.ws or device.ws.closed:
+            return f"[!] 未找到在线设备: {target}"
+        
+        if self.app:
+            self.app.linked_device_name = device.device_name
+            self.app.linked_login_id = device.login_id
+        
+        return f"[OK] 已进入设备会话模式: {device.device_name} ({device.login_id})\n提示: 直接输入文字即可发送，/unlink 退出"
+    
+    def _handle_unlink(self) -> str:
+        """处理 /unlink 命令 - 退出设备会话模式"""
+        if self.app:
+            old_name = self.app.linked_device_name
+            self.app.linked_device_name = ""
+            self.app.linked_login_id = ""
+            if old_name:
+                return f"[OK] 已退出与 {old_name} 的会话模式"
+        return "[!] 当前未处于任何设备会话模式"
     
     def _handle_downloads(self) -> str:
         """处理 /downloads 命令 - 打开下载文件夹"""
