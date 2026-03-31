@@ -122,6 +122,24 @@ lportal --no-auto-copy
 lportal --max-history 20
 ```
 
+### 设置下载目录
+
+文件（图片、视频）默认保存到系统的下载目录（`~/Downloads`）。可以通过环境变量 `LPORTAL_DOWNLOAD_DIR` 自定义下载路径：
+
+```bash
+# Windows PowerShell
+$env:LPORTAL_DOWNLOAD_DIR="D:\\MyDownloads"
+lportal
+
+# Windows CMD
+set LPORTAL_DOWNLOAD_DIR=D:\\MyDownloads
+lportal
+
+# Linux / Mac
+export LPORTAL_DOWNLOAD_DIR=/home/user/MyDownloads
+lportal
+```
+
 ### 配对码安全机制
 
 启动时会生成 4 位数字配对码，手机端需要输入正确的配对码才能连接。
