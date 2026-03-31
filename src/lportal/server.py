@@ -297,6 +297,15 @@ class Server:
                 "error": error
             })
     
+    async def broadcast(self, message: dict) -> None:
+        """广播消息给所有已验证客户端"""
+        for client in list(self.verified_clients):
+            if not client.closed:
+                try:
+                    await client.send_json(message)
+                except Exception:
+                    pass
+    
     async def _handle_command(self, data: dict, sender: web.WebSocketResponse) -> None:
         """处理客户端命令"""
         command = data.get("command", "")
@@ -322,7 +331,7 @@ class Server:
                     # 切换到覆盖模式时清空会话缓冲区
                     if mode == "cover":
                         self.config.session_buffer = ""
-                await sender.send_json({
+                await self.broadcast({
                     "type": "mode_changed",
                     "mode": mode,
                     "message": f"已切换到{'追加' if mode == 'add' else '覆盖'}模式"

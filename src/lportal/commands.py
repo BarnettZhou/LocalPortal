@@ -55,7 +55,7 @@ class CommandHandler:
             case "/refresh-qrcode" | "/rq":
                 return self._handle_refresh_qrcode()
             case "/mode":
-                return self._handle_mode(args)
+                return await self._handle_mode(args)
             case "/new-session":
                 return self._handle_new_session()
             case "/beauty":
@@ -191,7 +191,7 @@ class CommandHandler:
         self.server.verified_clients.clear()
         return f"[OK] 配对码已刷新: {old_code} -> {new_code}，所有客户端已断开"
     
-    def _handle_mode(self, args: list[str]) -> str:
+    async def _handle_mode(self, args: list[str]) -> str:
         """处理 /mode 命令 - 切换复制模式"""
         if not args:
             mode_desc = "追加模式" if self.config.copy_mode == 'add' else "覆盖模式"
@@ -204,12 +204,22 @@ class CommandHandler:
                 # 切换模式时重置会话，确保新消息与旧消息分开
                 self.config.new_session()
                 self.config.session_buffer = ''
+                await self.server.broadcast({
+                    "type": "mode_changed",
+                    "mode": "cover",
+                    "message": "已切换到覆盖模式"
+                })
             return "[OK] 复制模式: 覆盖模式 (cover)"
         elif mode == 'add':
             if self.config.copy_mode != 'add':
                 self.config.copy_mode = 'add'
                 # 切换模式时重置会话，确保新消息与旧消息分开
                 self.config.new_session()
+                await self.server.broadcast({
+                    "type": "mode_changed",
+                    "mode": "add",
+                    "message": "已切换到追加模式"
+                })
             return "[OK] 复制模式: 追加模式 (add)"
         else:
             return "用法: /mode [cover|add]\n  cover - 覆盖模式，新消息覆盖上一条（默认）\n  add   - 追加模式，新消息追加到末尾"
