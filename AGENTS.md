@@ -45,8 +45,12 @@ D:\workspace\local-portal/
 │       ├── commands.py          # 斜杠命令处理器 CommandHandler
 │       ├── config.py            # 配置状态 ServerConfig，配对码生成
 │       ├── history.py           # 历史记录管理 (循环缓冲区)
+│       ├── beauty.py            # 文本美化：LLM 调用、流式输出、美化历史
 │       ├── qr.py                # 二维码生成、获取本地 IP、浏览器唤起
 │       └── ui.py                # 终端 UI 输出 (rich console)
+├── src/
+│   └── prompt/
+│       └── text-beauty.md       # 文本美化系统提示词
 ├── static/
 │   └── index.html               # 移动端 Web 界面（纯 HTML/CSS/JS）
 ├── LocalPortal-Design/          # 设计方案文档（独立目录，被 .gitignore 排除）
@@ -134,9 +138,11 @@ uv build
 4. **config.py - ServerConfig**: 配置和运行时状态管理，包括 4 位数字配对码生成
 5. **history.py - History**: 循环缓冲区实现的历史记录（内存存储，不持久化），支持 session 分组
 6. **file_transfer.py - FileTransferManager**: 文件传输管理，处理图片/视频上传
-7. **qr.py**: 二维码生成、局域网 IP 获取、浏览器唤起
-8. **ui.py**: 终端 UI 输出，使用 rich 库美化
-9. **static/index.html**: Web 端界面，支持复制模式切换和会话管理
+7. **beauty.py**: 文本美化模块，通过 OpenAI 兼容接口调用 LLM，支持流式输出和思维链显示
+8. **qr.py**: 二维码生成、局域网 IP 获取、浏览器唤起
+9. **ui.py**: 终端 UI 输出，使用 rich 库美化
+10. **static/index.html**: Web 端界面，支持复制模式切换和会话管理
+11. **prompt/text-beauty.md**: 文本美化的系统提示词
 
 ### WebSocket 通信协议
 
@@ -189,6 +195,9 @@ uv build
 | `/downloads` | 打开下载文件夹 |
 | `/mode` | 切换复制模式 (cover/add) |
 | `/new-session` | 追加模式下刷新会话 |
+| `/beauty [N]` | 使用 LLM 美化第 N 条历史消息（默认最近一条） |
+| `/beauty-history` | 查看最近 10 次文字美化任务 |
+| `/beauty-copy [N]` | 复制第 N 次美化结果（默认最近一条） |
 | `/refresh-qrcode` (`/rq`) | 刷新配对码（断开所有客户端） |
 | `/help` | 显示帮助 |
 | `/exit` | 退出程序 |
@@ -222,6 +231,16 @@ uv build
 - **文件类型白名单**：只允许图片（jpeg/png/gif/webp）和视频（mp4/mov/webm）
 - **文件大小限制**：默认最大 100MB
 - **文件名清理**：去除路径分隔符，防止目录遍历攻击
+
+### 文本美化（LLM）
+
+- **配置来源**：项目根目录 `.env` 文件，包含 `OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_MODEL`
+- **提示词**：`src/prompt/text-beauty.md`，支持自定义修改
+- **流式输出**：使用 SSE 流式接收 LLM 响应，实时打印到终端
+- **思维链显示**：`reasoning_content` 字段或 `<think>` 标签内的内容以灰色 (`dim gray`) 显示
+- **正文显示**：`content` 字段以白色显示
+- **自动复制**：LLM 处理完成后，正文内容自动复制到剪贴板
+- **历史记录**：内存存储最近 10 次美化结果，通过 `/beauty-history` 和 `/beauty-copy` 查看/复制
 
 ### 复制模式与 Session 管理
 
@@ -287,6 +306,7 @@ uv tool install -e .
 8. **文件传输**：支持图片和视频，最大 100MB，分 64KB 切片传输
 9. **复制模式**：CLI 和 Web 端都支持切换覆盖/追加模式，切换时自动刷新 session
 10. **Web 端 UI**：顶部工具栏可切换模式，追加模式下显示"新会话"按钮
+11. **LLM 配置**：文本美化依赖 `.env` 中的 OpenAI 兼容接口配置，未配置时 `/beauty` 命令会提示错误
 
 ## TODO (from README)
 
