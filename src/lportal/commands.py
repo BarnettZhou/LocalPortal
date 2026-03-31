@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING, Optional
 
 import pyperclip
 
+from .beauty import beautify_text
 from .file_transfer import get_file_transfer_manager
-
-from .ui import print_help
+from .ui import console, print_beauty_list, print_help
 
 if TYPE_CHECKING:
     from .config import ServerConfig
@@ -21,7 +21,7 @@ class CommandHandler:
         self.config = config
         self.server = server
     
-    def handle(self, cmd_line: str) -> str:
+    async def handle(self, cmd_line: str) -> str:
         """
         处理命令行输入
         返回值: 要显示的消息（空字符串表示无输出）
@@ -58,6 +58,12 @@ class CommandHandler:
                 return self._handle_mode(args)
             case "/new-session":
                 return self._handle_new_session()
+            case "/beauty":
+                return await self._handle_beauty(args)
+            case "/beauty-history":
+                return self._handle_beauty_history()
+            case "/beauty-copy":
+                return self._handle_beauty_copy(args)
             case _:
                 return f"[?] 未知命令: {cmd}，输入 /help 查看可用命令"
     
@@ -215,6 +221,67 @@ class CommandHandler:
         
         self.config.session_buffer = ''
         return "[OK] 会话已刷新，下一条消息将作为第一条消息"
+    
+    async def _handle_beauty(self, args: list[str]) -> str:
+        """处理 /beauty 命令 - 使用 LLM 美化文本"""
+        try:
+            if not args:
+                if len(self.config.history) == 0:
+                    return "[!] 暂无历史消息"
+                entry = self.config.history.get(1)
+            else:
+                index = int(args[0])
+                entry = self.config.history.get(index)
+            
+            # 找到同一 session 的所有消息
+            session_entries = [
+                e for e in self.config.history.list()
+                if e.session_id == entry.session_id
+            ]
+            session_entries.reverse()
+            original_text = '\n'.join(e.text for e in session_entries)
+            
+            # 调用 LLM 进行流式美化
+            result = await beautify_text(original_text, console)
+            
+            # 保存到美化历史
+            self.config.beauty_history.add(original_text, result)
+            
+            # 复制到剪贴板
+            pyperclip.copy(result)
+            
+            return "[OK] 已美化并复制到剪贴板"
+        
+        except (ValueError, IndexError) as e:
+            return f"[!] {e}"
+        except Exception as e:
+            return f"[!] 美化失败: {e}"
+    
+    def _handle_beauty_history(self) -> str:
+        """处理 /beauty-history 命令"""
+        entries = self.config.beauty_history.list()
+        if not entries:
+            return "暂无美化记录"
+        print_beauty_list(entries)
+        return ""
+    
+    def _handle_beauty_copy(self, args: list[str]) -> str:
+        """处理 /beauty-copy 命令"""
+        try:
+            if not args:
+                if len(self.config.beauty_history) == 0:
+                    return "[!] 暂无美化记录"
+                entry = self.config.beauty_history.get(1)
+            else:
+                index = int(args[0])
+                entry = self.config.beauty_history.get(index)
+            
+            pyperclip.copy(entry.result)
+            preview = entry.preview[:30] + "..." if len(entry.preview) > 30 else entry.preview
+            return f"[OK] 已复制美化结果: {preview}"
+        
+        except (ValueError, IndexError) as e:
+            return f"[!] {e}"
     
     def _handle_downloads(self) -> str:
         """处理 /downloads 命令 - 打开下载文件夹"""

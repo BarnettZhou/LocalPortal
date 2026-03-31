@@ -73,7 +73,7 @@ class PortalApp:
                     if not cmd.strip():
                         continue
                     
-                    result = self.cmd_handler.handle(cmd)
+                    result = await self.cmd_handler.handle(cmd)
                     if result:
                         print_message(result)
                 

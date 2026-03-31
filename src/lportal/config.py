@@ -3,6 +3,7 @@
 import random
 from datetime import datetime
 
+from .beauty import BeautyHistory
 from .history import History
 from .qr import get_local_ip
 
@@ -29,6 +30,7 @@ class ServerConfig:
         self.start_time = datetime.now()
         self.connected_clients: set = set()
         self._history = History(self.max_history)
+        self._beauty_history = BeautyHistory(10)
         self.pairing_code: str = generate_pairing_code()
         
         # 复制模式: 'cover' (覆盖模式, 默认) 或 'add' (追加模式)
@@ -52,6 +54,10 @@ class ServerConfig:
     @property
     def history(self) -> History:
         return self._history
+    
+    @property
+    def beauty_history(self) -> BeautyHistory:
+        return self._beauty_history
     
     @property
     def local_url(self) -> str:
