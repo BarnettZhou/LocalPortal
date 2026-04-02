@@ -1,6 +1,7 @@
 """斜杠命令处理器"""
 
 import asyncio
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 import pyperclip
