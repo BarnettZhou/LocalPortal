@@ -31,7 +31,8 @@ class CommandHandler:
         返回值: 要显示的消息（空字符串表示无输出）
         """
         try:
-            parts = shlex.split(cmd_line.strip())
+            # 使用 posix=False 避免反斜杠被当作转义字符（Windows 路径）
+            parts = shlex.split(cmd_line.strip(), posix=False)
         except ValueError:
             # shlex 解析失败（如引号不匹配），回退到简单 split
             parts = cmd_line.strip().split()
