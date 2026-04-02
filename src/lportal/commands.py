@@ -1,6 +1,7 @@
 """斜杠命令处理器"""
 
 import asyncio
+import shlex
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -29,7 +30,11 @@ class CommandHandler:
         处理命令行输入
         返回值: 要显示的消息（空字符串表示无输出）
         """
-        parts = cmd_line.strip().split()
+        try:
+            parts = shlex.split(cmd_line.strip())
+        except ValueError:
+            # shlex 解析失败（如引号不匹配），回退到简单 split
+            parts = cmd_line.strip().split()
         if not parts:
             return ""
         
@@ -366,6 +371,8 @@ class CommandHandler:
             return "用法: /send <filepath>\n示例: /send C:\\Users\\xx\\Documents\\file.pdf"
         
         filepath = " ".join(args)  # 支持带空格的路径
+        # 去除可能的引号
+        filepath = filepath.strip('"\'')
         file_path = Path(filepath).expanduser().resolve()
         
         if not file_path.exists():
