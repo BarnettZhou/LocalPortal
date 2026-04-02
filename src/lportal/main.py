@@ -134,11 +134,8 @@ class PortalApp:
                     print_message(f"[{time_str}] 收到文件 [已保存]: {path}")
                 
                 elif msg["type"] == "server_message_sent":
-                    entry = msg["entry"]
-                    from datetime import datetime
-                    time_str = datetime.now().strftime("%H:%M:%S")
-                    preview = entry.preview[:30] + "..." if len(entry.preview) > 30 else entry.preview
-                    print_message(f"[{time_str}] -> 设备: {preview}")
+                    # 已在发送时打印，这里不再重复显示
+                    pass
             
             except Exception:
                 continue
