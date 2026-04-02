@@ -1481,50 +1481,54 @@
                 case 'server_file_end':
                     // 文件接收完成，组装并下载
                     if (serverFileReceive.file_id === data.file_id) {
-                        // 合并所有分片
-                        const binaryString = atob(serverFileReceive.chunks.join(''));
-                        const bytes = new Uint8Array(binaryString.length);
-                        for (let i = 0; i < binaryString.length; i++) {
-                            bytes[i] = binaryString.charCodeAt(i);
-                        }
-                        const blob = new Blob([bytes], { type: serverFileReceive.mime_type });
-                        
-                        // 触发下载
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = serverFileReceive.name;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                        
-                        // 添加文件消息到列表（样式同普通消息）
-                        const fileMsg = {
-                            id: Date.now(),
-                            text: `[文件] ${serverFileReceive.name} (${(serverFileReceive.size / 1024).toFixed(1)}KB)`,
-                            preview: `[文件] ${serverFileReceive.name}`,
-                            time: new Date().toISOString(),
-                            session_id: -Date.now(),  // 独立的 session
-                            device_name: '服务端',
-                            login_id: 'server'
-                        };
-                        messages.push(fileMsg);
-                        renderMessages();
-                        scrollToBottom();
-                        
-                        showToast(`已接收文件: ${serverFileReceive.name}`, 'success');
-                        
-                        // 清空接收缓存
-                        serverFileReceive = {
-                            file_id: null,
-                            name: '',
-                            size: 0,
-                            mime_type: '',
-                            chunks: [],
-                            received_chunks: 0,
-                            total_chunks: 0
-                        };
+                        // 使用 fetch API 解码 base64（比 atob 更可靠）
+                        (async () => {
+                            try {
+                                const base64Data = serverFileReceive.chunks.join('');
+                                const response = await fetch(`data:${serverFileReceive.mime_type};base64,${base64Data}`);
+                                const blob = await response.blob();
+                                
+                                // 触发下载
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = serverFileReceive.name;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                                
+                                // 添加文件消息到列表（样式同普通消息）
+                                const fileMsg = {
+                                    id: Date.now(),
+                                    text: `[文件] ${serverFileReceive.name} (${(serverFileReceive.size / 1024).toFixed(1)}KB)`,
+                                    preview: `[文件] ${serverFileReceive.name}`,
+                                    time: new Date().toISOString(),
+                                    session_id: -Date.now(),  // 独立的 session
+                                    device_name: '服务端',
+                                    login_id: 'server'
+                                };
+                                messages.push(fileMsg);
+                                renderMessages();
+                                scrollToBottom();
+                                
+                                showToast(`已接收文件: ${serverFileReceive.name}`, 'success');
+                            } catch (err) {
+                                console.error('文件解码失败:', err);
+                                showToast('文件接收失败', 'error');
+                            }
+                            
+                            // 清空接收缓存
+                            serverFileReceive = {
+                                file_id: null,
+                                name: '',
+                                size: 0,
+                                mime_type: '',
+                                chunks: [],
+                                received_chunks: 0,
+                                total_chunks: 0
+                            };
+                        })();
                     }
                     break;
                     
