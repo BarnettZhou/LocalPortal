@@ -293,6 +293,7 @@ def print_help() -> str:
     print_cmd("/devices", "查看所有已登录设备")
     print_cmd("/link <name|id>", "进入与指定设备的会话模式")
     print_cmd("/unlink", "退出设备会话模式")
+    print_cmd("/send <filepath>", "向当前会话设备发送文件（需在 /link 后使用）")
 
     console.print("\n[bold yellow]文本美化[/bold yellow]")
     print_cmd("/beauty [N]", "使用 LLM 美化第 N 条历史消息（默认最近一条）")

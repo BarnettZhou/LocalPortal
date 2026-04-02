@@ -1010,6 +1010,17 @@
         let isManualInputMode = false;  // 标记是否处于手动输入模式（避免重连时重置）
         let isConnecting = false;  // 标记是否正在连接中，防止重复连接
         
+        // 服务端发送的文件接收缓存
+        let serverFileReceive = {
+            file_id: null,
+            name: '',
+            size: 0,
+            mime_type: '',
+            chunks: [],
+            received_chunks: 0,
+            total_chunks: 0
+        };
+        
         // 复制模式：'cover' (覆盖) 或 'add' (追加)
         let copyMode = getCopyModeFromStorage();
 
@@ -1444,6 +1455,77 @@
                     messages.push(data.data);
                     renderMessages();
                     scrollToBottom();
+                    break;
+                    
+                case 'server_file_start':
+                    // 服务端开始发送文件
+                    serverFileReceive = {
+                        file_id: data.file_id,
+                        name: data.name,
+                        size: data.size,
+                        mime_type: data.mime_type,
+                        chunks: new Array(data.total_chunks).fill(null),
+                        received_chunks: 0,
+                        total_chunks: data.total_chunks
+                    };
+                    break;
+                    
+                case 'server_file_chunk':
+                    // 接收文件分片
+                    if (serverFileReceive.file_id === data.file_id) {
+                        serverFileReceive.chunks[data.index] = data.data;
+                        serverFileReceive.received_chunks++;
+                    }
+                    break;
+                    
+                case 'server_file_end':
+                    // 文件接收完成，组装并下载
+                    if (serverFileReceive.file_id === data.file_id) {
+                        // 合并所有分片
+                        const binaryString = atob(serverFileReceive.chunks.join(''));
+                        const bytes = new Uint8Array(binaryString.length);
+                        for (let i = 0; i < binaryString.length; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                        }
+                        const blob = new Blob([bytes], { type: serverFileReceive.mime_type });
+                        
+                        // 触发下载
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = serverFileReceive.name;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        
+                        // 添加文件消息到列表（样式同普通消息）
+                        const fileMsg = {
+                            id: Date.now(),
+                            text: `[文件] ${serverFileReceive.name} (${(serverFileReceive.size / 1024).toFixed(1)}KB)`,
+                            preview: `[文件] ${serverFileReceive.name}`,
+                            time: new Date().toISOString(),
+                            session_id: -Date.now(),  // 独立的 session
+                            device_name: '服务端',
+                            login_id: 'server'
+                        };
+                        messages.push(fileMsg);
+                        renderMessages();
+                        scrollToBottom();
+                        
+                        showToast(`已接收文件: ${serverFileReceive.name}`, 'success');
+                        
+                        // 清空接收缓存
+                        serverFileReceive = {
+                            file_id: null,
+                            name: '',
+                            size: 0,
+                            mime_type: '',
+                            chunks: [],
+                            received_chunks: 0,
+                            total_chunks: 0
+                        };
+                    }
                     break;
                     
                 case 'server_close':

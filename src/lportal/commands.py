@@ -72,6 +72,8 @@ class CommandHandler:
                 return await self._handle_link(args)
             case "/unlink":
                 return self._handle_unlink()
+            case "/send":
+                return await self._handle_send(args)
             case _:
                 return f"[?] 未知命令: {cmd}，输入 /help 查看可用命令"
     
@@ -353,6 +355,41 @@ class CommandHandler:
             if old_name:
                 return f"[OK] 已退出与 {old_name} 的会话模式"
         return "[!] 当前未处于任何设备会话模式"
+    
+    async def _handle_send(self, args: list[str]) -> str:
+        """处理 /send 命令 - 向已连接设备发送文件"""
+        if not self.app or not self.app.linked_login_id:
+            return "[!] /send 必须在 /link 会话模式下使用，请先执行 /link <device_name>"
+        
+        if not args:
+            return "用法: /send <filepath>\n示例: /send C:\\Users\\xx\\Documents\\file.pdf"
+        
+        filepath = " ".join(args)  # 支持带空格的路径
+        file_path = Path(filepath).expanduser().resolve()
+        
+        if not file_path.exists():
+            return f"[!] 文件不存在: {filepath}"
+        
+        if not file_path.is_file():
+            return f"[!] 不是文件: {filepath}"
+        
+        # 检查文件大小（最大 100MB）
+        max_size = 100 * 1024 * 1024
+        file_size = file_path.stat().st_size
+        if file_size > max_size:
+            return f"[!] 文件过大: {file_size / 1024 / 1024:.1f}MB (最大 100MB)"
+        
+        try:
+            result = await self.server.send_server_file(
+                str(file_path),
+                self.app.linked_login_id
+            )
+            if result:
+                return f"[OK] 已发送文件到 {self.app.linked_device_name}: {file_path.name} ({file_size / 1024:.1f}KB)"
+            else:
+                return "[!] 发送失败，设备可能已离线"
+        except Exception as e:
+            return f"[!] 发送失败: {e}"
     
     def _handle_downloads(self) -> str:
         """处理 /downloads 命令 - 打开下载文件夹"""

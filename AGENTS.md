@@ -205,6 +205,7 @@ uv build
 | `/devices` | 查看所有已登录设备 |
 | `/link <name\|id>` | 进入与指定设备的会话模式 |
 | `/unlink` | 退出设备会话模式 |
+| `/send <filepath>` | 向当前会话设备发送文件 |
 | `/refresh-qrcode` (`/rq`) | 刷新配对码（断开所有客户端） |
 | `/help` | 分组显示所有命令及下载目录设置说明 |
 | `/exit` | 退出程序 |
@@ -269,6 +270,7 @@ uv build
 - **进入会话**：`/link <device_name 或 login_id>` 查找在线设备，进入专属会话模式
 - **会话提示符**：`PortalApp` 维护 `linked_device_name` 和 `linked_login_id`，动态生成 `lportal[设备名]>` 提示符
 - **直接发送**：会话模式下非斜杠输入直接调用 `server.send_server_text()` 发送到设备
+- **文件发送**：`/send <filepath>` 命令调用 `server.send_server_file()` 向设备发送文件
 - **消息标记**：服务端发送的消息 `login_id="server"`，`target_login_id` 指向目标设备，使用负数的 `session_id` 确保独立显示块
 - **退出会话**：`/unlink` 清除 link 状态，恢复普通模式
 
@@ -338,6 +340,7 @@ uv tool install -e .
 10. **Web 端 UI**：顶部工具栏可切换模式，追加模式下显示"新会话"按钮，注册成功后显示当前 `login_id`
 11. **自动恢复登录**：Web 端通过 localStorage 保存设备信息，刷新页面后自动完成注册流程
 12. **设备会话模式**：服务端可通过 `/link` 进入与指定设备的专属会话，直接输入文字即可推送
+13. **文件发送**：`/send` 命令支持服务端向设备发送文件，设备端自动下载
 13. **LLM 配置**：文本美化依赖 `.env` 中的 OpenAI 兼容接口配置，可从用户配置目录或当前工作目录读取，未配置时 `/beauty` 命令会提示配置文件位置
 
 ## TODO (from README)

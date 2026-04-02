@@ -446,6 +446,96 @@ class Server:
         
         return entry
     
+    async def send_server_file(self, filepath: str, target_login_id: str) -> Optional[dict]:
+        """服务端主动向指定设备发送文件
+        
+        Args:
+            filepath: 本地文件路径
+            target_login_id: 目标设备的 login_id
+            
+        Returns:
+            发送成功返回文件信息 dict，失败返回 None
+        """
+        if not filepath or not target_login_id:
+            return None
+        
+        file_path = Path(filepath)
+        if not file_path.exists() or not file_path.is_file():
+            return None
+        
+        # 检查目标设备是否在线
+        device = self.devices.get(target_login_id)
+        if not device or not device.ws or device.ws.closed:
+            return None
+        
+        file_size = file_path.stat().st_size
+        file_name = file_path.name
+        
+        # 根据扩展名判断 MIME 类型
+        mime_type = "application/octet-stream"
+        ext = file_path.suffix.lower()
+        mime_map = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+            '.png': 'image/png', '.gif': 'image/gif',
+            '.webp': 'image/webp', '.mp4': 'video/mp4',
+            '.mov': 'video/quicktime', '.webm': 'video/webm',
+            '.avi': 'video/x-msvideo', '.pdf': 'application/pdf',
+            '.txt': 'text/plain', '.json': 'application/json',
+            '.md': 'text/markdown', '.doc': 'application/msword',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.xls': 'application/vnd.ms-excel',
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.zip': 'application/zip',
+        }
+        if ext in mime_map:
+            mime_type = mime_map[ext]
+        
+        # 生成文件 ID
+        import uuid
+        file_id = str(uuid.uuid4())[:8]
+        
+        # 读取文件并分片
+        chunk_size = 64 * 1024  # 64KB
+        chunks = []
+        with open(file_path, 'rb') as f:
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                chunks.append(base64.b64encode(chunk).decode('utf-8'))
+        
+        # 发送文件开始消息
+        await device.ws.send_json({
+            "type": "server_file_start",
+            "file_id": file_id,
+            "name": file_name,
+            "size": file_size,
+            "mime_type": mime_type,
+            "total_chunks": len(chunks)
+        })
+        
+        # 发送文件分片
+        for i, chunk_data in enumerate(chunks):
+            await device.ws.send_json({
+                "type": "server_file_chunk",
+                "file_id": file_id,
+                "index": i,
+                "data": chunk_data
+            })
+        
+        # 发送文件结束消息
+        await device.ws.send_json({
+            "type": "server_file_end",
+            "file_id": file_id
+        })
+        
+        return {
+            "file_id": file_id,
+            "name": file_name,
+            "size": file_size,
+            "mime_type": mime_type
+        }
+    
     async def _handle_command(self, data: dict, sender: web.WebSocketResponse) -> None:
         """处理客户端命令"""
         command = data.get("command", "")
