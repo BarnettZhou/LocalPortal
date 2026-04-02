@@ -83,7 +83,7 @@ def _project_root() -> Path:
 
 
 def _user_config_dir() -> Path:
-    """获取用户配置目录
+    r"""获取用户配置目录
     
     - Windows: %APPDATA%\localportal
     - macOS: ~/Library/Application Support/localportal
@@ -109,7 +109,7 @@ def _user_config_dir() -> Path:
 
 
 def _load_env() -> dict[str, str]:
-    """加载 .env 文件配置
+    r"""加载 .env 文件配置
     
     加载优先级（从高到低）：
     1. 当前工作目录的 .env 文件（方便项目级配置）
