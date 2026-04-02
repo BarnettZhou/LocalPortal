@@ -231,12 +231,13 @@ OPENAI_MODEL=gpt-4o-mini
 | `/devices` | 查看所有已登录设备（名称、login_id、登录时间） |
 | `/link <name\|id>` | 进入与指定设备的会话模式，提示符变为 `lportal[设备名]>` |
 | `/unlink` | 退出设备会话模式 |
+| `/send <filepath>` | 向当前会话设备发送文件（需在 `/link` 后使用） |
 | `/help` | 显示帮助 |
 | `/exit` | 退出程序 |
 
 ### 设备会话模式
 
-进入会话模式后，可以直接输入文字发送给设备，无需斜杠命令：
+进入会话模式后，可以直接输入文字发送给设备，无需斜杠命令。也可以使用 `/send` 命令发送文件：
 
 ```
 lportal> /link iPhone
@@ -244,6 +245,9 @@ lportal> /link iPhone
 
 lportal[iPhone]> 你好，这是服务端消息
 [11:30:15] -> iPhone: 你好，这是服务端消息...
+
+lportal[iPhone]> /send C:\Users\xx\Documents\file.pdf
+[OK] 已发送文件到 iPhone: file.pdf (123.4KB)
 
 lportal[iPhone]> /unlink
 [OK] 已退出与 iPhone 的会话模式
