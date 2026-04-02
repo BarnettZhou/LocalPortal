@@ -53,9 +53,9 @@ class PortalApp:
         print_message(f"地址: {qr_url}")
         print_message("")
         
-        # 设置信号处理（Ctrl+C）
+        # 设置信号处理（禁用 Ctrl+C 退出，保留复制功能）
         loop = asyncio.get_event_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
+        for sig in (signal.SIGTERM,):
             try:
                 loop.add_signal_handler(sig, self._signal_handler)
             except NotImplementedError:
@@ -94,8 +94,9 @@ class PortalApp:
                 except SystemExit:
                     break
                 except KeyboardInterrupt:
-                    # Ctrl+C 处理
-                    break
+                    # Ctrl+C 已禁用退出，保留用于复制
+                    print_message("[提示] Ctrl+C 已禁用退出，使用 /exit 退出程序")
+                    continue
                 except Exception as e:
                     print_message(f"[ERROR] 错误: {e}", style="red")
         

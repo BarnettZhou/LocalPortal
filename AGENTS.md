@@ -206,7 +206,7 @@ uv build
 | `/link <name\|id>` | 进入与指定设备的会话模式 |
 | `/unlink` | 退出设备会话模式 |
 | `/refresh-qrcode` (`/rq`) | 刷新配对码（断开所有客户端） |
-| `/help` | 显示帮助 |
+| `/help` | 分组显示所有命令及下载目录设置说明 |
 | `/exit` | 退出程序 |
 
 ## Development Conventions
@@ -228,7 +228,7 @@ uv build
 1. **单一职责**：每个模块负责一个明确功能
 2. **配置集中**：`ServerConfig` 统一管理配置和状态
 3. **消息队列**：使用 `asyncio.Queue` 进行模块间通信
-4. **信号处理**：支持 `Ctrl+C` 优雅退出（Windows 兼容）
+4. **信号处理**：禁用 `Ctrl+C` 退出，保留用于复制功能；使用 `/exit` 退出程序
 
 ### 安全机制
 
@@ -326,7 +326,7 @@ uv tool install -e .
 4. **配对码**：每次启动生成新的 4 位随机码，用于客户端验证
 5. **历史记录**：仅内存存储，重启后清空，最大条数可配置
 6. **静态文件**：`static/index.html` 作为移动端界面，打包时会包含在 wheel 中
-7. **下载目录**：默认保存到 `~/Downloads`，可通过 `LPORTAL_DOWNLOAD_DIR` 环境变量自定义
+7. **下载目录**：默认保存到 `~/Downloads`，可通过 `LPORTAL_DOWNLOAD_DIR` 环境变量自定义（支持 Windows PowerShell/CMD、macOS/Linux bash/zsh 等设置方式）
 8. **文件传输**：支持图片和视频，最大 100MB，分 64KB 切片传输
 9. **复制模式**：CLI 和 Web 端都支持切换覆盖/追加模式，切换时自动刷新 session
 10. **Web 端 UI**：顶部工具栏可切换模式，追加模式下显示"新会话"按钮，注册成功后显示当前 `login_id`

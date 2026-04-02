@@ -32,7 +32,7 @@ def print_banner(config: "ServerConfig") -> None:
     console.print("提示: 使用 /qr 命令显示二维码")
     console.print()
     console.print("-" * 40)
-    console.print("可用命令: /auto, /copy, /list, /status, /open, /qr, /rq, /mode, /new-session, /beauty, /beauty-history, /beauty-copy, /devices, /link, /unlink, /exit, /help")
+    console.print("提示: 输入 /help 查看所有可用命令")
     console.print()
 
 
@@ -264,31 +264,60 @@ def print_new_message(entry: "MessageEntry", auto_copied: bool = False) -> None:
 
 
 def print_help() -> str:
-    """返回帮助信息文本"""
-    help_text = """
-Local Portal 命令帮助
+    """打印帮助信息"""
+    from rich.text import Text
+    
+    console.print("\n[bold green]Local Portal 命令帮助[/bold green]\n")
 
-/auto [on|off]         开启/关闭自动复制模式
-/copy [N]              复制历史消息（N=1-10，无参=最近一条）
-/list (/ls)            列出最近10条消息摘要
-/status                显示服务运行状态
-/open                  在浏览器中打开主页面
-/qrcode (/qr)          显示二维码（扫码连接）
-/downloads             打开下载文件夹
-/refresh-qrcode (/rq)  刷新配对码（所有客户端需重新登录）
-/mode [cover|add]      切换复制模式 (cover=覆盖模式, add=追加模式)
-/beauty [N]            使用 LLM 美化第 N 条历史消息（默认最近一条）
-/beauty-history        查看最近 10 次文字美化任务
-/beauty-copy [N]       复制第 N 次美化结果（默认最近一条）
-/devices               查看所有已登录设备
-/link <name|id>        进入与指定设备的会话模式
-/unlink                退出设备会话模式
-/new-session           追加模式下刷新会话，清空缓冲区
-/help                  显示此帮助信息
-/exit                  退出程序
+    def print_cmd(cmd: str, desc: str):
+        """打印命令行，命令部分带颜色，描述部分普通"""
+        t = Text()
+        t.append(f"  {cmd:<22}", style="cyan")
+        t.append(desc)
+        console.print(t)
 
-模式说明:
-  cover (默认) - 新消息覆盖上一条，适合单条复制
-  add          - 新消息追加到末尾，适合多条合并
-"""
-    return help_text.strip()
+    console.print("[bold yellow]基础操作[/bold yellow]")
+    print_cmd("/copy [N]", "复制历史消息（N=1-10，无参=最近一条）")
+    print_cmd("/list (/ls)", "列出最近10条消息摘要")
+    print_cmd("/status", "显示服务运行状态")
+    print_cmd("/open", "在浏览器中打开主页面")
+    print_cmd("/qrcode (/qr)", "显示二维码（扫码连接）")
+    print_cmd("/downloads", "打开下载文件夹")
+
+    console.print("\n[bold yellow]模式与会话[/bold yellow]")
+    print_cmd("/auto [on|off]", "开启/关闭自动复制模式")
+    print_cmd("/mode [cover|add]", "切换复制模式 (cover=覆盖模式, add=追加模式)")
+    print_cmd("/new-session", "追加模式下刷新会话，清空缓冲区")
+
+    console.print("\n[bold yellow]设备管理[/bold yellow]")
+    print_cmd("/devices", "查看所有已登录设备")
+    print_cmd("/link <name|id>", "进入与指定设备的会话模式")
+    print_cmd("/unlink", "退出设备会话模式")
+
+    console.print("\n[bold yellow]文本美化[/bold yellow]")
+    print_cmd("/beauty [N]", "使用 LLM 美化第 N 条历史消息（默认最近一条）")
+    print_cmd("/beauty-history", "查看最近 10 次文字美化任务")
+    print_cmd("/beauty-copy [N]", "复制第 N 次美化结果（默认最近一条）")
+
+    console.print("\n[bold yellow]其他[/bold yellow]")
+    print_cmd("/refresh-qrcode (/rq)", "刷新配对码（所有客户端需重新登录）")
+    print_cmd("/help", "显示此帮助信息")
+    print_cmd("/exit", "退出程序")
+
+    console.print("\n[bold]模式说明:[/bold]")
+    console.print("  [dim]cover (默认)[/dim] - 新消息覆盖上一条，适合单条复制")
+    console.print("  [dim]add[/dim]          - 新消息追加到末尾，适合多条合并")
+
+    console.print("\n[bold]下载目录设置:[/bold]")
+    console.print("  默认保存到系统下载文件夹，可通过环境变量 [cyan]LPORTAL_DOWNLOAD_DIR[/cyan] 自定义")
+    console.print("\n  [bold]Windows (PowerShell):[/bold]")
+    console.print('    [green]$env:LPORTAL_DOWNLOAD_DIR="C:\\Users\\xx\\Downloads"[/green]')
+    console.print("  [bold]Windows (CMD):[/bold]")
+    console.print("    [green]set LPORTAL_DOWNLOAD_DIR=C:\\Users\\xx\\Downloads[/green]")
+    console.print("\n  [bold]macOS / Linux (bash / zsh):[/bold]")
+    console.print("    [green]export LPORTAL_DOWNLOAD_DIR=/Users/xx/Downloads[/green]")
+    console.print("  [bold]永久生效（写入 ~/.bashrc 或 ~/.zshrc）:[/bold]")
+    console.print('    [green]echo "export LPORTAL_DOWNLOAD_DIR=/Users/xx/Downloads" >> ~/.zshrc[/green]')
+    console.print("    [green]source ~/.zshrc[/green]")
+    console.print()
+    return ""
