@@ -1,5 +1,5 @@
 [project]
-name = "lportal"
+name = "localportal"
 version = "0.1.0"
 description = "局域网语音输入中转工具 - 本地传送门"
 readme = "README.md"
@@ -45,3 +45,4 @@ packages = ["src/lportal"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "static" = "lportal/static"
+"src/prompt" = "lportal/prompt"

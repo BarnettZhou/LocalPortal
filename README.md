@@ -34,7 +34,7 @@
 uv tool install -e .
 
 # 或从 PyPI 安装（发布后）
-uv tool install lportal
+uv tool install localportal
 ```
 
 安装完成后，确保 `%APPDATA%\Python\Scripts` 在你的 PATH 环境变量中，然后直接运行：
@@ -50,8 +50,8 @@ lportal
 
 **更新/卸载**：
 ```bash
-uv tool upgrade lportal   # 更新
-uv tool uninstall lportal # 卸载
+uv tool upgrade localportal   # 更新
+uv tool uninstall localportal # 卸载
 ```
 
 ### 方式二：uv 本地运行（开发调试）
@@ -92,7 +92,7 @@ lportal
 
 **从 PyPI 安装（发布后）**：
 ```bash
-pip install lportal
+pip install localportal
 
 # 运行
 lportal
@@ -104,7 +104,7 @@ lportal
 python -m build
 
 # 安装生成的 wheel
-pip install dist/lportal-0.1.0-py3-none-any.whl
+pip install dist/localportal-0.1.0-py3-none-any.whl
 
 # 运行
 lportal
@@ -148,13 +148,45 @@ lportal
 
 ### LLM 配置（文本美化功能）
 
-`/beauty` 命令需要配置 OpenAI 兼容接口。在项目根目录创建 `.env` 文件：
+`/beauty` 命令需要配置 OpenAI 兼容接口。创建 `.env` 文件，放在以下任一位置：
+
+**方式一：用户配置目录（推荐全局安装用户）**
+
+```bash
+# Windows
+mkdir "%APPDATA%\localportal"
+echo OPENAI_BASE_URL=https://api.openai.com/v1 > "%APPDATA%\localportal\.env"
+echo OPENAI_API_KEY=sk-xxxxxx >> "%APPDATA%\localportal\.env"
+echo OPENAI_MODEL=gpt-4o-mini >> "%APPDATA%\localportal\.env"
+
+# macOS
+mkdir -p ~/Library/Application\ Support/localportal
+cat > ~/Library/Application\ Support/localportal/.env << EOF
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=sk-xxxxxx
+OPENAI_MODEL=gpt-4o-mini
+EOF
+
+# Linux
+mkdir -p ~/.config/localportal
+cat > ~/.config/localportal/.env << EOF
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=sk-xxxxxx
+OPENAI_MODEL=gpt-4o-mini
+EOF
+```
+
+**方式二：当前工作目录（适合开发调试）**
+
+在项目目录或任意工作目录创建 `.env` 文件：
 
 ```bash
 OPENAI_BASE_URL=https://api.openai.com/v1/chat/completions
 OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
 OPENAI_MODEL=gpt-4o-mini
 ```
+
+**注意**：当前工作目录的配置会覆盖用户配置目录的配置。
 
 系统提示词位于 `src/prompt/text-beauty.md`，可根据需要自行修改。
 

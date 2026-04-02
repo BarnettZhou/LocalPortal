@@ -82,30 +82,92 @@ def _project_root() -> Path:
     return Path(__file__).parent.parent.parent.resolve()
 
 
+def _user_config_dir() -> Path:
+    """获取用户配置目录
+    
+    - Windows: %APPDATA%\localportal
+    - macOS: ~/Library/Application Support/localportal
+    - Linux: ~/.config/localportal
+    """
+    import platform
+    
+    system = platform.system()
+    
+    if system == "Windows":
+        app_data = os.environ.get("APPDATA")
+        if app_data:
+            return Path(app_data) / "localportal"
+    elif system == "Darwin":  # macOS
+        home = Path.home()
+        return home / "Library" / "Application Support" / "localportal"
+    
+    # Linux 和其他系统
+    config_home = os.environ.get("XDG_CONFIG_HOME")
+    if config_home:
+        return Path(config_home) / "localportal"
+    return Path.home() / ".config" / "localportal"
+
+
 def _load_env() -> dict[str, str]:
-    """加载 .env 文件配置"""
+    """加载 .env 文件配置
+    
+    加载优先级（从高到低）：
+    1. 当前工作目录的 .env 文件（方便项目级配置）
+    2. 用户配置目录的 .env 文件（~/.config/localportal/.env 或 %APPDATA%\localportal\.env）
+    """
     env: dict[str, str] = {}
-    # 优先从项目根目录查找
-    env_path = _project_root() / ".env"
-    if not env_path.exists():
-        env_path = Path(os.getcwd()) / ".env"
-    if env_path.exists():
-        with open(env_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, value = line.split("=", 1)
-                env[key.strip()] = value.strip()
+    
+    # 尝试加载路径，后加载的覆盖先加载的
+    env_paths: list[Path] = []
+    
+    # 1. 用户配置目录
+    user_config = _user_config_dir()
+    env_paths.append(user_config / ".env")
+    
+    # 2. 当前工作目录（项目级配置，最高优先级）
+    env_paths.append(Path(os.getcwd()) / ".env")
+    
+    for env_path in env_paths:
+        if env_path.exists():
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, value = line.split("=", 1)
+                    env[key.strip()] = value.strip()
+    
     return env
 
 
 def _load_prompt() -> str:
-    """加载系统提示词"""
-    prompt_path = _project_root() / "src" / "prompt" / "text-beauty.md"
-    if prompt_path.exists():
-        with open(prompt_path, "r", encoding="utf-8") as f:
+    """加载系统提示词
+    
+    加载优先级（从高到低）：
+    1. 用户配置目录的自定义提示词（text-beauty.md）
+    2. 包自带的默认提示词
+    """
+    # 1. 尝试从用户配置目录加载自定义提示词
+    user_config = _user_config_dir()
+    user_prompt = user_config / "text-beauty.md"
+    if user_prompt.exists():
+        with open(user_prompt, "r", encoding="utf-8") as f:
             return f.read()
+    
+    # 2. 从包目录加载默认提示词
+    # 注意：打包后提示词位于 lportal/prompt/ 下
+    package_dir = Path(__file__).parent
+    package_prompt = package_dir / "prompt" / "text-beauty.md"
+    if package_prompt.exists():
+        with open(package_prompt, "r", encoding="utf-8") as f:
+            return f.read()
+    
+    # 3. 开发环境回退
+    dev_prompt = _project_root() / "src" / "prompt" / "text-beauty.md"
+    if dev_prompt.exists():
+        with open(dev_prompt, "r", encoding="utf-8") as f:
+            return f.read()
+    
     return ""
 
 
@@ -155,8 +217,15 @@ async def beautify_text(text: str, console: Console) -> str:
     prompt = _load_prompt()
 
     if not all([base_url, api_key, model]):
+        user_config = _user_config_dir()
         raise RuntimeError(
-            "缺少 LLM 配置，请检查 .env 文件中的 OPENAI_BASE_URL、OPENAI_API_KEY、OPENAI_MODEL"
+            f"缺少 LLM 配置，请在以下位置之一创建 .env 文件：\n"
+            f"  1. 当前工作目录: {Path(os.getcwd()) / '.env'}\n"
+            f"  2. 用户配置目录: {user_config / '.env'}\n"
+            f"\n必需配置项：\n"
+            f"  OPENAI_BASE_URL=https://api.openai.com/v1\n"
+            f"  OPENAI_API_KEY=sk-xxxxxx\n"
+            f"  OPENAI_MODEL=gpt-3.5-turbo"
         )
 
     if not prompt:

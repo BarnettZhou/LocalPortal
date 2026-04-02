@@ -242,7 +242,13 @@ uv build
 
 ### 文本美化（LLM）
 
-- **配置来源**：项目根目录 `.env` 文件，包含 `OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_MODEL`
+- **配置来源**：支持多处放置 `.env` 文件（优先级从高到低）：
+  1. 当前工作目录 `.env`（适合项目级配置）
+  2. 用户配置目录（适合全局安装用户）：
+     - Windows: `%APPDATA%\localportal\.env`
+     - macOS: `~/Library/Application Support/localportal/.env`
+     - Linux: `~/.config/localportal/.env`
+- **配置项**：`OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_MODEL`
 - **提示词**：`src/prompt/text-beauty.md`，支持自定义修改
 - **流式输出**：使用 SSE 流式接收 LLM 响应，实时打印到终端
 - **思维链显示**：`reasoning_content` 字段或 `<think>` 标签内的内容以灰色 (`dim gray`) 显示
@@ -332,7 +338,7 @@ uv tool install -e .
 10. **Web 端 UI**：顶部工具栏可切换模式，追加模式下显示"新会话"按钮，注册成功后显示当前 `login_id`
 11. **自动恢复登录**：Web 端通过 localStorage 保存设备信息，刷新页面后自动完成注册流程
 12. **设备会话模式**：服务端可通过 `/link` 进入与指定设备的专属会话，直接输入文字即可推送
-13. **LLM 配置**：文本美化依赖 `.env` 中的 OpenAI 兼容接口配置，未配置时 `/beauty` 命令会提示错误
+13. **LLM 配置**：文本美化依赖 `.env` 中的 OpenAI 兼容接口配置，可从用户配置目录或当前工作目录读取，未配置时 `/beauty` 命令会提示配置文件位置
 
 ## TODO (from README)
 

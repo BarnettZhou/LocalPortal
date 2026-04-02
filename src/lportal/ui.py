@@ -319,5 +319,19 @@ def print_help() -> str:
     console.print("  [bold]永久生效（写入 ~/.bashrc 或 ~/.zshrc）:[/bold]")
     console.print('    [green]echo "export LPORTAL_DOWNLOAD_DIR=/Users/xx/Downloads" >> ~/.zshrc[/green]')
     console.print("    [green]source ~/.zshrc[/green]")
+
+    console.print("\n[bold]LLM 配置（文本美化功能）:[/bold]")
+    console.print("  创建 .env 文件，放在以下任一位置：")
+    console.print("    - 当前工作目录: [cyan]./[/cyan]")
+    console.print("    - Windows: [cyan]%APPDATA%\\localportal\\.env[/cyan]")
+    console.print("    - macOS: [cyan]~/Library/Application Support/localportal/.env[/cyan]")
+    console.print("    - Linux: [cyan]~/.config/localportal/.env[/cyan]")
+    console.print("\n  配置内容：")
+    console.print('    [green]OPENAI_BASE_URL=https://api.openai.com/v1[/green]')
+    console.print('    [green]OPENAI_API_KEY=sk-xxxxxx[/green]')
+    console.print('    [green]OPENAI_MODEL=gpt-3.5-turbo[/green]')
+
+    console.print("\n[bold]自定义提示词:[/bold]")
+    console.print("  在用户配置目录放置 [cyan]text-beauty.md[/cyan] 文件可覆盖默认提示词")
     console.print()
     return ""
