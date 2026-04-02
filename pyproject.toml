@@ -1,6 +1,6 @@
 [project]
 name = "localportal"
-version = "0.1.0"
+version = "0.1.1"
 description = "局域网语音输入中转工具 - 本地传送门"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -34,7 +34,7 @@ dependencies = [
 lportal = "lportal.main:app"
 
 [project.urls]
-Homepage = "https://github.com/local-portal/lportal"
+Homepage = "https://github.com/BarnettZhou/LocalPortal"
 
 [build-system]
 requires = ["hatchling"]
