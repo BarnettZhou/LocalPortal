@@ -1,136 +1,138 @@
 # Local Portal (lportal)
 
-局域网文本实时中转工具 —— 本地传送门
+📖 [中文文档](docs/readme-zh.md)
 
-## 功能
+A real-time LAN text relay tool —— the Local Portal
 
-- **手机输入 → 电脑剪贴板实时同步**：在手机上输入文字，电脑剪贴板立即获得内容
-- **文件传输**：手机发送图片、视频，直接保存到电脑下载目录
-- **复制模式切换**：支持覆盖模式（默认）和追加模式，追加模式下多条消息自动合并
-- **文本美化**：通过 LLM 将口语化输入转为结构化文档，支持流式输出和思维链显示
-- **多设备隔离**：每个设备独立注册、独立会话，消息和历史记录完全隔离
-- **设备会话模式**：服务端可直接与指定设备建立会话，双向发送消息
-- **纯浏览器方案**：手机端无需安装 App，直接浏览器访问即可使用
-- **交互式命令行**：电脑端提供 CLI 终端，支持斜杠命令控制
-- **配对码安全**：4位数字配对码验证，防止未授权访问
+## Features
 
-支持场景：
-- 快速发送网址、验证码、长文本到电脑
-- 手机拍照/视频直接传输到电脑
-- 临时传输笔记、待办事项
-- 手机打字，电脑粘贴使用
-- 语音输入后一键结构化整理为专业文档
-- 多设备同时接入，各自数据互不干扰
-- 服务端主动向指定设备推送消息和通知
+- **Phone Input → PC Clipboard Sync**: Type on your phone, and the content instantly appears on your computer clipboard
+- **File Transfer**: Send images and videos from your phone directly to your computer's download folder
+- **Copy Mode Switching**: Supports cover mode (default) and append mode; multiple messages are automatically merged in append mode
+- **Text Beautification**: Use LLM to convert colloquial input into structured documents, with streaming output and reasoning chain display
+- **Multi-Device Isolation**: Each device registers independently with isolated sessions; messages and history are completely separated
+- **Device Session Mode**: The server can establish dedicated sessions with specific devices for bidirectional messaging
+- **Pure Browser Solution**: No app installation required on the phone; just open the browser and go
+- **Interactive CLI**: The computer side provides a CLI terminal with slash command support
+- **Pairing Code Security**: 4-digit numeric pairing code prevents unauthorized access
 
-## 安装
+Use Cases:
+- Quickly send URLs, verification codes, or long text to your computer
+- Transfer photos and videos directly from your phone to your computer
+- Temporary note and to-do transmission
+- Type on your phone, paste on your computer
+- Convert voice input into professionally structured documents with one click
+- Multiple devices connected simultaneously with completely isolated data
+- Server actively pushes messages and notifications to specified devices
 
-### 方式一：uv 全局安装（推荐日常使用）
+## Installation
 
-使用 uv 工具模式全局安装，安装后可直接运行 `lportal`：
+### Option 1: Global Install with uv (Recommended for Daily Use)
+
+Install globally using uv's tool mode, then run `lportal` directly:
 
 ```bash
-# 从本地路径全局安装
+# Install from local path
 uv tool install -e .
 
-# 或从 PyPI 安装（发布后）
+# Or install from PyPI (after release)
 uv tool install localportal
 ```
 
-安装完成后，确保 `%APPDATA%\Python\Scripts` 在你的 PATH 环境变量中，然后直接运行：
+After installation, make sure `%APPDATA%\Python\Scripts` is in your PATH, then run:
 
 ```bash
 lportal
 ```
 
-**特点**：
-- 依赖隔离在 `%APPDATA%\uv\tools\lportal\` 目录
-- 全局可用，无需进入项目目录
-- 不依赖 uv 运行时，安装后可独立运行
+**Highlights**:
+- Dependencies are isolated in `%APPDATA%\uv\tools\lportal\`
+- Available globally without entering the project directory
+- Independent runtime after installation; no need for uv afterwards
 
-**更新/卸载**：
+**Upgrade / Uninstall**:
 ```bash
-uv tool upgrade localportal   # 更新
-uv tool uninstall localportal # 卸载
+uv tool upgrade localportal   # upgrade
+uv tool uninstall localportal # uninstall
 ```
 
-### 方式二：uv 本地运行（开发调试）
+### Option 2: Local Run with uv (Development & Debugging)
 
-在项目目录下使用虚拟环境运行：
+Run inside the project directory using a virtual environment:
 
 ```bash
-uv sync        # 安装依赖
-uv run lportal # 运行
+uv sync        # install dependencies
+uv run lportal # run
 ```
 
-**特点**：
-- 依赖安装在项目 `.venv` 目录
-- 适合开发调试
-- 需要进入项目目录才能运行
+**Highlights**:
+- Dependencies are installed in the project's `.venv` directory
+- Ideal for development and debugging
+- Must be run inside the project directory
 
-### 方式三：pip 安装（无需 uv）
+### Option 3: pip Install (No uv Required)
 
-如果你不想使用 uv，可以只用 Python 和 pip：
+If you prefer not to use uv, you can use Python and pip alone:
 
-**本地开发安装（可编辑模式）**：
+**Local Development Install (Editable Mode)**:
 ```bash
-# 创建虚拟环境（推荐）
+# Create virtual environment (recommended)
 python -m venv .venv
 
-# 激活虚拟环境
+# Activate virtual environment
 # Windows:
 .venv\Scripts\activate
 # Linux/Mac:
 source .venv/bin/activate
 
-# 安装依赖和包
+# Install dependencies and package
 pip install -e .
 
-# 运行
+# Run
 lportal
 ```
 
-**从 PyPI 安装（发布后）**：
+**Install from PyPI (after release)**:
 ```bash
 pip install localportal
 
-# 运行
+# Run
 lportal
 ```
 
-**本地构建 wheel 安装**：
+**Local Wheel Build & Install**:
 ```bash
-# 构建 wheel 包
+# Build wheel package
 python -m build
 
-# 安装生成的 wheel
+# Install the generated wheel
 pip install dist/localportal-0.1.0-py3-none-any.whl
 
-# 运行
+# Run
 lportal
 ```
 
-**注意**：pip 安装不会像 uv tool 那样自动管理虚拟环境，建议手动创建虚拟环境避免依赖冲突。
+**Note**: pip installation does not automatically manage virtual environments like `uv tool` does. It is recommended to create a virtual environment manually to avoid dependency conflicts.
 
-## 使用
+## Usage
 
 ```bash
-# 默认启动（端口 14554）
+# Default start (port 14554)
 lportal
 
-# 指定端口
+# Specify port
 lportal --port 8080
 
-# 禁用自动复制
+# Disable auto-copy
 lportal --no-auto-copy
 
-# 设置历史条数
+# Set max history entries
 lportal --max-history 20
 ```
 
-### 设置下载目录
+### Set Download Directory
 
-文件（图片、视频）默认保存到系统的下载目录（`~/Downloads`）。可以通过环境变量 `LPORTAL_DOWNLOAD_DIR` 自定义下载路径：
+Files (images, videos) are saved to the system download directory (`~/Downloads`) by default. You can customize the download path via the `LPORTAL_DOWNLOAD_DIR` environment variable:
 
 ```bash
 # Windows PowerShell
@@ -146,11 +148,11 @@ export LPORTAL_DOWNLOAD_DIR=/home/user/MyDownloads
 lportal
 ```
 
-### LLM 配置（文本美化功能）
+### LLM Configuration (Text Beautification)
 
-`/beauty` 命令需要配置 OpenAI 兼容接口。创建 `.env` 文件，放在以下任一位置：
+The `/beauty` command requires an OpenAI-compatible API. Create a `.env` file in one of the following locations:
 
-**方式一：用户配置目录（推荐全局安装用户）**
+**Option 1: User Config Directory (Recommended for global install users)**
 
 ```bash
 # Windows
@@ -176,9 +178,9 @@ OPENAI_MODEL=gpt-4o-mini
 EOF
 ```
 
-**方式二：当前工作目录（适合开发调试）**
+**Option 2: Current Working Directory (Good for development & debugging)**
 
-在项目目录或任意工作目录创建 `.env` 文件：
+Create a `.env` file in the project directory or any working directory:
 
 ```bash
 OPENAI_BASE_URL=https://api.openai.com/v1/chat/completions
@@ -186,93 +188,93 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
 OPENAI_MODEL=gpt-4o-mini
 ```
 
-**注意**：当前工作目录的配置会覆盖用户配置目录的配置。
+**Note**: The `.env` in the current working directory takes precedence over the user config directory.
 
-系统提示词位于 `src/prompt/text-beauty.md`，可根据需要自行修改。
+The system prompt is located at `src/prompt/text-beauty.md`; feel free to modify it as needed.
 
-### 设备注册机制
+### Device Registration
 
-手机端连接后需要经过两步验证：
+The mobile side must pass two verification steps after connecting:
 
-1. **配对码验证**：输入电脑端显示的 4 位配对码
-2. **设备注册**：输入设备名称（不可与当前在线设备重名），注册成功后获得唯一的 `login_id`
+1. **Pairing Code Verification**: Enter the 4-digit pairing code displayed on the computer
+2. **Device Registration**: Enter a device name (must be unique among currently online devices). After successful registration, a unique `login_id` is assigned
 
-- 同一设备断线重连时，只要服务端未重启，`login_id` 保持不变，历史记录可同步恢复
-- 使用 `/devices` 命令可查看所有在线设备
+- When the same device reconnects, as long as the server has not restarted, the `login_id` remains unchanged and history can be restored
+- Use the `/devices` command to view all online devices
 
-### 配对码安全机制
+### Pairing Code Security
 
-启动时会生成 4 位数字配对码，手机端需要输入正确的配对码才能连接。
+A 4-digit pairing code is generated on startup; the mobile side must enter the correct code to connect.
 
-- **扫码连接**：使用 `/qr` 命令显示二维码，手机扫码自动填充配对码
-- **手动连接**：浏览器访问地址后输入配对码
-- **刷新配对码**：使用 `/refresh-qrcode` (`/rq`) 命令生成新配对码，旧连接将断开
-- **切换复制模式**：使用 `/mode [cover|add]` 切换覆盖/追加模式，变更会同步到所有在线设备
-- **刷新会话**：追加模式下使用 `/new-session` 开始新会话
-- **文本美化**：使用 `/beauty [N]` 将第 N 条历史消息通过 LLM 结构化整理
+- **Scan to connect**: Use the `/qr` command to display a QR code; scanning it auto-fills the pairing code
+- **Manual connect**: Open the browser address and enter the pairing code
+- **Refresh pairing code**: Use `/refresh-qrcode` (`/rq`) to generate a new pairing code; old connections will be disconnected
+- **Switch copy mode**: Use `/mode [cover|add]` to switch between cover and append modes; changes are synchronized to all online devices
+- **Refresh session**: In append mode, use `/new-session` to start a new session
+- **Text beautification**: Use `/beauty [N]` to structure and polish the Nth history message via LLM
 
-## 命令
+## Commands
 
-| 命令 | 功能 |
-|------|------|
-| `/auto [on\|off]` | 自动复制模式开关 |
-| `/copy [N]` | 复制历史消息（N=1-10，无参=最近一条） |
-| `/list` (`/ls`) | 列出历史消息 |
-| `/status` | 显示服务状态（含配对码） |
-| `/open` | 浏览器打开主页面 |
-| `/qrcode` (`/qr`) | 显示 ASCII 二维码（扫码连接） |
-| `/downloads` | 打开下载文件夹 |
-| `/refresh-qrcode` (`/rq`) | 刷新配对码（断开所有连接） |
-| `/mode [cover\|add]` | 切换复制模式：cover=覆盖模式，add=追加模式 |
-| `/new-session` | 追加模式下刷新会话（清空缓冲区） |
-| `/beauty [N]` | 使用 LLM 美化第 N 条历史消息（默认最近一条） |
-| `/beauty-history` | 查看最近 10 次文字美化任务 |
-| `/beauty-copy [N]` | 复制第 N 次美化结果（默认最近一条） |
-| `/devices` | 查看所有已登录设备（名称、login_id、登录时间） |
-| `/link <name\|id>` | 进入与指定设备的会话模式，提示符变为 `lportal[设备名]>` |
-| `/unlink` | 退出设备会话模式 |
-| `/send <filepath>` | 向当前会话设备发送文件（需在 `/link` 后使用） |
-| `/help` | 显示帮助 |
-| `/exit` | 退出程序 |
+| Command | Description |
+|---------|-------------|
+| `/auto [on\|off]` | Toggle auto-copy mode |
+| `/copy [N]` | Copy history message (N=1-10, no arg = most recent) |
+| `/list` (`/ls`) | List history messages |
+| `/status` | Show service status (including pairing code) |
+| `/open` | Open the main page in browser |
+| `/qrcode` (`/qr`) | Display ASCII QR code (scan to connect) |
+| `/downloads` | Open download folder |
+| `/refresh-qrcode` (`/rq`) | Refresh pairing code (disconnects all connections) |
+| `/mode [cover\|add]` | Switch copy mode: cover = overwrite, add = append |
+| `/new-session` | Refresh session in append mode (clear buffer) |
+| `/beauty [N]` | Beautify the Nth history message via LLM (default: most recent) |
+| `/beauty-history` | View the last 10 text beautification tasks |
+| `/beauty-copy [N]` | Copy the Nth beautification result (default: most recent) |
+| `/devices` | View all logged-in devices (name, login_id, login time) |
+| `/link <name\|id>` | Enter session mode with a specific device; prompt becomes `lportal[device]>` |
+| `/unlink` | Exit device session mode |
+| `/send <filepath>` | Send a file to the current session device (use after `/link`) |
+| `/help` | Show help |
+| `/exit` | Exit the program |
 
-### 设备会话模式
+### Device Session Mode
 
-进入会话模式后，可以直接输入文字发送给设备，无需斜杠命令。也可以使用 `/send` 命令发送文件：
+After entering session mode, you can directly type text to send to the device without slash commands. You can also use `/send` to transfer files:
 
 ```
 lportal> /link iPhone
-[OK] 已进入设备会话模式: iPhone (a3f9b2c1)
+[OK] Entered device session mode: iPhone (a3f9b2c1)
 
-lportal[iPhone]> 你好，这是服务端消息
-[11:30:15] -> iPhone: 你好，这是服务端消息...
+lportal[iPhone]> Hello, this is a server message
+[11:30:15] -> iPhone: Hello, this is a server message...
 
 lportal[iPhone]> /send C:\Users\xx\Documents\file.pdf
-[OK] 已发送文件到 iPhone: file.pdf (123.4KB)
+[OK] File sent to iPhone: file.pdf (123.4KB)
 
 lportal[iPhone]> /unlink
-[OK] 已退出与 iPhone 的会话模式
+[OK] Exited session mode with iPhone
 ```
 
-## 技术栈
+## Tech Stack
 
 - Python 3.9+
 - aiohttp (HTTP/WebSocket)
 - typer (CLI)
-- prompt_toolkit (交互式终端)
-- rich (终端美化)
-- pyperclip (剪贴板)
+- prompt_toolkit (Interactive terminal)
+- rich (Terminal styling)
+- pyperclip (Clipboard)
 
 ## TODO
 
-- [x] 支持图片传输
-- [x] 支持视频传输
-- [x] 复制模式切换（覆盖/追加）
-- [x] 会话管理（追加模式下分组显示）
-- [ ] 消息持久化存储
-- [ ] 多设备同时在线管理
-- [ ] 加密传输支持
-- [ ] Web 端黑暗/明亮主题切换
+- [x] Image transfer support
+- [x] Video transfer support
+- [x] Copy mode switching (cover / add)
+- [x] Session management (grouped display in append mode)
+- [ ] Message persistent storage
+- [ ] Multi-device online management
+- [ ] Encrypted transmission support
+- [ ] Web dark / light theme switching
 
-## 许可证
+## License
 
 MIT

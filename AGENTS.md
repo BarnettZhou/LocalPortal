@@ -59,7 +59,9 @@ D:\workspace\local-portal/
 │   └── backend/                 # 后端设计参考
 ├── pyproject.toml               # 项目配置（uv/hatchling）
 ├── uv.lock                      # uv 依赖锁定文件
-├── README.md                    # 用户文档（中文）
+├── README.md                    # 用户文档（英文）
+├── docs/
+│   └── readme-zh.md             # 用户文档（中文）
 ├── .gitignore                   # Git 忽略配置
 └── .venv/                       # uv 虚拟环境
 ```
@@ -211,6 +213,11 @@ uv build
 | `/exit` | 退出程序 |
 
 ## Development Conventions
+
+### 文档维护
+
+- **多语言 README**：项目同时维护根目录的 `README.md`（英文）和 `docs/readme-zh.md`（中文）。
+- **提交前检查**：每次有代码变更需要提交前，必须检查并同步更新 `README.md` 和 `docs/readme-zh.md`，确保两份文档的内容和结构保持一致。
 
 ### 代码风格
 
