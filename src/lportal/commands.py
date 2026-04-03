@@ -9,6 +9,7 @@ import pyperclip
 
 from .beauty import beautify_text
 from .file_transfer import get_file_transfer_manager
+from .i18n import _
 from .ui import console, print_beauty_list, print_help
 
 if TYPE_CHECKING:
@@ -82,23 +83,23 @@ class CommandHandler:
             case "/send":
                 return await self._handle_send(args)
             case _:
-                return f"[?] 未知命令: {cmd}，输入 /help 查看可用命令"
+                return f"{_('[?] Unknown command')}: {cmd}, {_('type /help for available commands')}"
     
     def _handle_auto(self, args: list[str]) -> str:
         """处理 /auto 命令"""
         if not args:
-            status = "开启 [OK]" if self.config.auto_copy else "关闭 [X]"
-            return f"自动复制模式: {status}"
+            status = _("ON [OK]") if self.config.auto_copy else _("OFF [X]")
+            return _("Auto copy mode: {status}").format(status=status)
         
         match args[0].lower():
             case "on" | "1" | "true":
                 self.config.auto_copy = True
-                return "[OK] 自动复制模式: 开启"
+                return _("[OK] Auto copy mode: ON")
             case "off" | "0" | "false":
                 self.config.auto_copy = False
-                return "[OK] 自动复制模式: 关闭"
+                return _("[OK] Auto copy mode: OFF")
             case _:
-                return "用法: /auto [on|off]"
+                return _("Usage: /auto [on|off]")
     
     def _handle_copy(self, args: list[str]) -> str:
         """处理 /copy 命令"""
@@ -106,7 +107,7 @@ class CommandHandler:
             if not args:
                 # 复制最近一条
                 if len(self.config.history) == 0:
-                    return "[!] 暂无历史消息"
+                    return _("[!] No history messages")
                 entry = self.config.history.get(1)
             else:
                 # 复制指定索引
@@ -125,22 +126,22 @@ class CommandHandler:
             
             # 构建预览文本
             if count > 1:
-                preview = f"[{count}条] {entry.preview[:20]}..."
+                preview = f"[{count}{_('items')}] {entry.preview[:20]}..."
             else:
                 preview = entry.preview[:30] + "..." if len(entry.preview) > 30 else entry.preview
             
             pyperclip.copy(copy_text)
-            return f"[OK] 已复制: {preview}"
+            return f"{_('[OK] Copied')}: {preview}"
         
         except (ValueError, IndexError) as e:
-            return f"[!] {e}"
+            return _("[!] {e}").format(e=e)
     
     def _handle_list(self) -> str:
         """处理 /list 命令"""
         from .ui import print_session_list
         entries = self.config.history.list()
         if not entries:
-            return "暂无历史消息"
+            return _("No history messages")
         
         # 统一按 session 分组显示
         print_session_list(entries)
@@ -157,7 +158,7 @@ class CommandHandler:
         from .qr import open_browser
         url = self.config.local_url
         open_browser(url)
-        return f"[OK] 已在浏览器中打开 {url}"
+        return f"{_('[OK] Opened in browser')} {url}"
     
     def _handle_qrcode(self) -> str:
         """处理 /qrcode 命令 - 在终端显示 ASCII 二维码"""
@@ -173,12 +174,12 @@ class CommandHandler:
         lines = [
             "",
             "=" * 50,
-            "手机扫描二维码或访问以下地址：",
+            _("Scan the QR code with your phone or visit the address below"),
             "",
             qr_ascii,
             "",
-            f"配对码: {pairing_code}",
-            f"地址: {url}",
+            f"{_('Pairing code')}: {pairing_code}",
+            f"{_('Address')}: {url}",
             "=" * 50,
             "",
         ]
@@ -202,17 +203,17 @@ class CommandHandler:
             if not client.closed:
                 asyncio.create_task(client.send_json({
                     "type": "auth_failed",
-                    "message": "配对码已刷新，请重新登录"
+                    "message": _("Pairing code refreshed, please re-login")
                 }))
                 asyncio.create_task(client.close())
         self.server.verified_clients.clear()
-        return f"[OK] 配对码已刷新: {old_code} -> {new_code}，所有客户端已断开"
+        return f"{_('[OK] Pairing code refreshed')}: {old_code} -> {new_code}, {_('All clients disconnected')}"
     
     async def _handle_mode(self, args: list[str]) -> str:
         """处理 /mode 命令 - 切换复制模式"""
         if not args:
-            mode_desc = "追加模式" if self.config.copy_mode == 'add' else "覆盖模式"
-            return f"当前复制模式: {self.config.copy_mode} ({mode_desc})"
+            mode_desc = _("append") if self.config.copy_mode == 'add' else _("cover")
+            return f"{_('Current copy mode')}: {self.config.copy_mode} ({mode_desc})"
         
         mode = args[0].lower()
         if mode == 'cover':
@@ -224,9 +225,9 @@ class CommandHandler:
                 await self.server.broadcast({
                     "type": "mode_changed",
                     "mode": "cover",
-                    "message": "已切换到覆盖模式"
+                    "message": _("Switched to cover mode")
                 })
-            return "[OK] 复制模式: 覆盖模式 (cover)"
+            return _("[OK] Copy mode: cover (overwrite)")
         elif mode == 'add':
             if self.config.copy_mode != 'add':
                 self.config.copy_mode = 'add'
@@ -235,26 +236,26 @@ class CommandHandler:
                 await self.server.broadcast({
                     "type": "mode_changed",
                     "mode": "add",
-                    "message": "已切换到追加模式"
+                    "message": _("Switched to append mode")
                 })
-            return "[OK] 复制模式: 追加模式 (add)"
+            return _("[OK] Copy mode: add (append)")
         else:
-            return "用法: /mode [cover|add]\n  cover - 覆盖模式，新消息覆盖上一条（默认）\n  add   - 追加模式，新消息追加到末尾"
+            return _("Usage: /mode [cover|add]\n  cover - overwrite mode, new message overwrites previous (default)\n  add   - append mode, new message appends to end")
     
     def _handle_new_session(self) -> str:
         """处理 /new-session 命令 - 追加模式下刷新会话"""
         if self.config.copy_mode != 'add':
-            return "[!] /new-session 仅在追加模式下可用，当前为覆盖模式"
+            return _("[!] /new-session is only available in append mode, currently in overwrite mode")
         
         self.config.session_buffer = ''
-        return "[OK] 会话已刷新，下一条消息将作为第一条消息"
+        return _("[OK] Session refreshed, next message will be the first")
     
     async def _handle_beauty(self, args: list[str]) -> str:
         """处理 /beauty 命令 - 使用 LLM 美化文本"""
         try:
             if not args:
                 if len(self.config.history) == 0:
-                    return "[!] 暂无历史消息"
+                    return _("[!] No history messages")
                 entry = self.config.history.get(1)
             else:
                 index = int(args[0])
@@ -281,18 +282,18 @@ class CommandHandler:
             # 复制到剪贴板
             pyperclip.copy(result)
             
-            return "[OK] 已美化并复制到剪贴板"
+            return _("[OK] Beautified and copied to clipboard")
         
         except (ValueError, IndexError) as e:
-            return f"[!] {e}"
+            return _("[!] {e}").format(e=e)
         except Exception as e:
-            return f"[!] 美化失败: {e}"
+            return f"{_('[!] Beautification failed')}: {e}"
     
     def _handle_beauty_history(self) -> str:
         """处理 /beauty-history 命令"""
         entries = self.config.beauty_history.list()
         if not entries:
-            return "暂无美化记录"
+            return _("No beautification records")
         print_beauty_list(entries)
         return ""
     
@@ -301,7 +302,7 @@ class CommandHandler:
         try:
             if not args:
                 if len(self.config.beauty_history) == 0:
-                    return "[!] 暂无美化记录"
+                    return _("[!] No beautification records")
                 entry = self.config.beauty_history.get(1)
             else:
                 index = int(args[0])
@@ -309,10 +310,10 @@ class CommandHandler:
             
             pyperclip.copy(entry.result)
             preview = entry.preview[:30] + "..." if len(entry.preview) > 30 else entry.preview
-            return f"[OK] 已复制美化结果: {preview}"
+            return f"{_('[OK] Copied')}: {preview}"
         
         except (ValueError, IndexError) as e:
-            return f"[!] {e}"
+            return _("[!] {e}").format(e=e)
     
     def _handle_devices(self) -> str:
         """处理 /devices 命令 - 查看已登录设备"""
@@ -322,7 +323,7 @@ class CommandHandler:
             if info.ws is not None and not info.ws.closed
         ]
         if not online_devices:
-            return "暂无在线设备"
+            return _("No online devices")
         print_devices(online_devices)
         return ""
     
@@ -330,8 +331,8 @@ class CommandHandler:
         """处理 /link 命令 - 进入设备会话模式"""
         if not args:
             if self.app and self.app.linked_device_name:
-                return f"当前已链接设备: {self.app.linked_device_name} ({self.app.linked_login_id})"
-            return "用法: /link <device_name 或 login_id>"
+                return f"{_('Currently linked device')}: {self.app.linked_device_name} ({self.app.linked_login_id})"
+            return _("Usage: /link <device_name or login_id>")
         
         target = args[0].strip()
         
@@ -345,13 +346,13 @@ class CommandHandler:
                     break
         
         if not device or not device.ws or device.ws.closed:
-            return f"[!] 未找到在线设备: {target}"
+            return f"{_('[!] Online device not found')}: {target}"
         
         if self.app:
             self.app.linked_device_name = device.device_name
             self.app.linked_login_id = device.login_id
         
-        return f"[OK] 已进入设备会话模式: {device.device_name} ({device.login_id})\n提示: 直接输入文字即可发送，/unlink 退出"
+        return f"{_('[OK] Entered device session mode')}: {device.device_name} ({device.login_id})\n{_('Hint: type directly to send, /unlink to exit')}"
     
     def _handle_unlink(self) -> str:
         """处理 /unlink 命令 - 退出设备会话模式"""
@@ -360,16 +361,16 @@ class CommandHandler:
             self.app.linked_device_name = ""
             self.app.linked_login_id = ""
             if old_name:
-                return f"[OK] 已退出与 {old_name} 的会话模式"
-        return "[!] 当前未处于任何设备会话模式"
+                return _("[OK] Exited session mode with {name}").format(name=old_name)
+        return _("[!] Not in any device session mode")
     
     async def _handle_send(self, args: list[str]) -> str:
         """处理 /send 命令 - 向已连接设备发送文件"""
         if not self.app or not self.app.linked_login_id:
-            return "[!] /send 必须在 /link 会话模式下使用，请先执行 /link <device_name>"
+            return _("[!] /send must be used after /link session mode, please run /link <device_name> first")
         
         if not args:
-            return "用法: /send <filepath>\n示例: /send C:\\Users\\xx\\Documents\\file.pdf"
+            return _("Usage: /send <filepath>\nExample: /send C:\\Users\\xx\\Documents\\file.pdf")
         
         filepath = " ".join(args)  # 支持带空格的路径
         # 去除可能的引号
@@ -377,16 +378,16 @@ class CommandHandler:
         file_path = Path(filepath).expanduser().resolve()
         
         if not file_path.exists():
-            return f"[!] 文件不存在: {filepath}"
+            return f"{_('[!] File does not exist')}: {filepath}"
         
         if not file_path.is_file():
-            return f"[!] 不是文件: {filepath}"
+            return f"{_('[!] Not a file')}: {filepath}"
         
         # 检查文件大小（最大 100MB）
         max_size = 100 * 1024 * 1024
         file_size = file_path.stat().st_size
         if file_size > max_size:
-            return f"[!] 文件过大: {file_size / 1024 / 1024:.1f}MB (最大 100MB)"
+            return f"{_('[!] File too large')}: {file_size / 1024 / 1024:.1f}MB ({_('max 100MB')})"
         
         try:
             result = await self.server.send_server_file(
@@ -394,17 +395,17 @@ class CommandHandler:
                 self.app.linked_login_id
             )
             if result:
-                return f"[OK] 已发送文件到 {self.app.linked_device_name}: {file_path.name} ({file_size / 1024:.1f}KB)"
+                return f"{_('[OK] File sent to')} {self.app.linked_device_name}: {file_path.name} ({file_size / 1024:.1f}KB)"
             else:
-                return "[!] 发送失败，设备可能已离线"
+                return _("[!] Send failed, device may be offline")
         except Exception as e:
-            return f"[!] 发送失败: {e}"
+            return f"{_('[!] Send failed')}: {e}"
     
     def _handle_downloads(self) -> str:
         """处理 /downloads 命令 - 打开下载文件夹"""
         try:
             ftm = get_file_transfer_manager()
             ftm.open_downloads_folder()
-            return f"[OK] 已打开下载文件夹: {ftm.download_dir}"
+            return f"{_('[OK] Download folder opened')}: {ftm.download_dir}"
         except Exception as e:
-            return f"[!] 打开下载文件夹失败: {e}"
+            return f"{_('[!] Failed to open download folder')}: {e}"

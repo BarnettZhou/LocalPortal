@@ -11,6 +11,8 @@ from typing import Optional
 import aiohttp
 from rich.console import Console
 
+from .i18n import _
+
 
 @dataclass
 class BeautyEntry:
@@ -59,7 +61,7 @@ class BeautyHistory:
         index: 1-N, 1=最近的一条
         """
         if not 1 <= index <= len(self._queue):
-            raise IndexError(f"无效索引 {index}，当前有 {len(self._queue)} 条记录")
+            raise IndexError(_("Invalid index {index}, currently {count} records").format(index=index, count=len(self._queue)))
         return self._queue[index - 1]
 
     def list(self) -> list[BeautyEntry]:
@@ -219,17 +221,17 @@ async def beautify_text(text: str, console: Console) -> str:
     if not all([base_url, api_key, model]):
         user_config = _user_config_dir()
         raise RuntimeError(
-            f"缺少 LLM 配置，请在以下位置之一创建 .env 文件：\n"
-            f"  1. 当前工作目录: {Path(os.getcwd()) / '.env'}\n"
-            f"  2. 用户配置目录: {user_config / '.env'}\n"
-            f"\n必需配置项：\n"
+            f"{_('Missing LLM config. Please create a .env file in one of the following locations')}:\n"
+            f"  1. {_('Current working directory')}: {Path(os.getcwd()) / '.env'}\n"
+            f"  2. {_('User config directory')}: {user_config / '.env'}\n"
+            f"\n{_('Required configs')}:\n"
             f"  OPENAI_BASE_URL=https://api.openai.com/v1\n"
             f"  OPENAI_API_KEY=sk-xxxxxx\n"
             f"  OPENAI_MODEL=gpt-3.5-turbo"
         )
 
     if not prompt:
-        raise RuntimeError("未找到系统提示词文件，请检查 src/prompt/text-beauty.md")
+        raise RuntimeError(_("System prompt file not found, please check src/prompt/text-beauty.md"))
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -253,7 +255,7 @@ async def beautify_text(text: str, console: Console) -> str:
         async with session.post(base_url, headers=headers, json=payload) as resp:
             if resp.status != 200:
                 error_text = await resp.text()
-                raise RuntimeError(f"LLM 请求失败 ({resp.status}): {error_text}")
+                raise RuntimeError(_("LLM request failed ({status}): {text}").format(status=resp.status, text=error_text))
 
             async for raw_line in resp.content:
                 line = raw_line.decode("utf-8").strip()

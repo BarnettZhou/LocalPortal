@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, List
 
 from rich.console import Console
 
+from .i18n import _
+
 if TYPE_CHECKING:
     from .beauty import BeautyEntry
     from .config import ServerConfig
@@ -18,21 +20,21 @@ console = Console()
 def print_banner(config: "ServerConfig") -> None:
     """打印启动横幅"""
     console.print()
-    console.print("Local Portal 启动中...", style="bold green")
+    console.print(_("Local Portal starting..."), style="bold green")
     console.print("-" * 40)
     console.print()
-    console.print("服务地址:")
-    console.print(f"   本机:   {config.local_url}")
-    console.print(f"   局域网: {config.lan_url}")
+    console.print(f"{_('Service address')}:")
+    console.print(f"   {_('Local')}:   {config.local_url}")
+    console.print(f"   {_('LAN')}: {config.lan_url}")
     console.print()
-    console.print(f"配对码: {config.pairing_code}")
+    console.print(f"{_('Pairing code')}: {config.pairing_code}")
     console.print()
-    mode_desc = "追加" if config.copy_mode == 'add' else "覆盖"
-    console.print(f"复制模式: {mode_desc} 模式 (/mode 切换)")
-    console.print("提示: 使用 /qr 命令显示二维码")
+    mode_desc = _("append") if config.copy_mode == 'add' else _("cover")
+    console.print(f"{_('Copy mode')}: {mode_desc} {_('Switch with /mode')}")
+    console.print(_("Hint: use /qr to show QR code"))
     console.print()
     console.print("-" * 40)
-    console.print("提示: 输入 /help 查看所有可用命令")
+    console.print(_("Hint: type /help for available commands"))
     console.print()
 
 
@@ -41,55 +43,55 @@ def print_status(config: "ServerConfig") -> None:
     from .qr import get_local_ip
     
     console.print()
-    console.print("Local Portal 状态", style="bold")
+    console.print(_("Local Portal status"), style="bold")
     console.print()
     
     # 服务地址
-    console.print("服务地址")
-    console.print(f"  本机:   {config.local_url}")
-    console.print(f"  局域网: {config.lan_url}")
+    console.print(_("Service address"))
+    console.print(f"  {_('Local')}:   {config.local_url}")
+    console.print(f"  {_('LAN')}: {config.lan_url}")
     console.print()
     
     # 安全
-    console.print("安全")
-    console.print(f"  配对码:        {config.pairing_code}")
+    console.print(_("Security"))
+    console.print(f"  {_('Pairing code')}:        {config.pairing_code}")
     console.print()
     
     # 运行状态
-    console.print("运行状态")
-    auto_status = "开启 [OK]" if config.auto_copy else "关闭 [X]"
-    mode_status = "追加" if config.copy_mode == 'add' else "覆盖"
-    console.print(f"  自动复制模式:  {auto_status}")
-    console.print(f"  复制模式:      {mode_status} (/mode 切换)")
+    console.print(_("Runtime status"))
+    auto_status = _("ON [OK]") if config.auto_copy else _("OFF [X]")
+    mode_status = _("append") if config.copy_mode == 'add' else _("cover")
+    console.print(f"  {_('Auto copy mode')}:  {auto_status}")
+    console.print(f"  {_('Copy mode')}:      {mode_status} (/mode)")
     if config.copy_mode == 'add' and config.session_buffer:
         buffer_preview = config.session_buffer[:30] + "..." if len(config.session_buffer) > 30 else config.session_buffer
-        console.print(f"  会话缓冲区:    \"{buffer_preview}\"")
-    console.print(f"  在线客户端:    {len(config.connected_clients)}")
-    console.print(f"  历史消息数:    {len(config.history)} / {config.history.maxsize}")
-    console.print(f"  运行时间:      {config.uptime}")
+        console.print(f"  {_('Session buffer')}:    \"{buffer_preview}\"")
+    console.print(f"  {_('Online clients')}:    {len(config.connected_clients)}")
+    console.print(f"  {_('History messages')}:    {len(config.history)} / {config.history.maxsize}")
+    console.print(f"  {_('Uptime')}:      {config.uptime}")
     console.print()
     
     # 最近活动
-    console.print("最近活动")
+    console.print(_("Recent activity"))
     last_time = config.history.last_received_time()
     if last_time:
         time_str = last_time.strftime("%H:%M:%S")
         delta = datetime.now() - last_time
         if delta.seconds < 60:
-            ago = "刚刚"
+            ago = _("Just now")
         elif delta.seconds < 3600:
-            ago = f"{delta.seconds // 60}分钟前"
+            ago = f"{delta.seconds // 60}{_('minutes ago')}"
         else:
-            ago = f"{delta.seconds // 3600}小时前"
-        console.print(f"  最后接收:      {time_str} ({ago})")
+            ago = f"{delta.seconds // 3600}{_('hours ago')}"
+        console.print(f"  {_('Last received')}:      {time_str} ({ago})")
         
         # 最近消息预览
         if len(config.history) > 0:
             last_msg = config.history.list()[0]
             preview = last_msg.preview[:30] + "..." if len(last_msg.preview) > 30 else last_msg.preview
-            console.print(f"  消息预览:      \"{preview}\"")
+            console.print(f"  {_('Message preview')}:      \"{preview}\"")
     else:
-        console.print("  最后接收:      无")
+        console.print(f"  {_('Last received')}:      {_('None')}")
     console.print()
 
 
@@ -123,7 +125,7 @@ def _truncate_text(text: str, max_width: int) -> str:
 def print_list(entries: List["MessageEntry"]) -> None:
     """打印历史消息列表 - 简洁风格，预览固定12个全角字符宽度"""
     if not entries:
-        console.print("暂无历史消息")
+        console.print(_("No history messages"))
         return
     
     console.print()
@@ -132,7 +134,8 @@ def print_list(entries: List["MessageEntry"]) -> None:
     PREVIEW_MAX_WIDTH = 40
     
     # 打印表头
-    console.print("ID   预览                                        时间    ", style="dim")
+    header = f"{_('ID'):<4} {_('Preview'):<{PREVIEW_MAX_WIDTH}} {_('Time'):<8}"
+    console.print(header, style="dim")
     console.print("-" * 61, style="dim")
     
     # 打印数据行
@@ -153,7 +156,7 @@ def print_list(entries: List["MessageEntry"]) -> None:
 def print_session_list(entries: List["MessageEntry"]) -> None:
     """打印历史消息列表 - 追加模式下按 session 分组显示"""
     if not entries:
-        console.print("暂无历史消息")
+        console.print(_("No history messages"))
         return
     
     console.print()
@@ -162,7 +165,8 @@ def print_session_list(entries: List["MessageEntry"]) -> None:
     SOURCE_MAX_WIDTH = 20
     
     # 打印表头
-    console.print(f"{'ID':<4} {'预览':<{PREVIEW_MAX_WIDTH}} {'来源':<{SOURCE_MAX_WIDTH}} {'时间':<8}", style="dim")
+    header = f"{_('ID'):<4} {_('Preview'):<{PREVIEW_MAX_WIDTH}} {_('Source'):<{SOURCE_MAX_WIDTH}} {_('Time'):<8}"
+    console.print(header, style="dim")
     console.print("-" * (4 + 1 + PREVIEW_MAX_WIDTH + 1 + SOURCE_MAX_WIDTH + 1 + 8), style="dim")
     
     # 按 session_id 分组（entries 是按时间倒序的）
@@ -185,7 +189,7 @@ def print_session_list(entries: List["MessageEntry"]) -> None:
         time_str = session['time'].strftime("%H:%M:%S")
         
         if session['count'] > 1:
-            preview_text = f"[{session['count']}条] {session['text']}"
+            preview_text = f"[{session['count']}{_('items')}] {session['text']}"
         else:
             preview_text = session['text']
         
@@ -205,14 +209,15 @@ def print_session_list(entries: List["MessageEntry"]) -> None:
 def print_beauty_list(entries: List["BeautyEntry"]) -> None:
     """打印美化历史记录列表"""
     if not entries:
-        console.print("暂无美化记录")
+        console.print(_("No beautification records"))
         return
     
     console.print()
     PREVIEW_MAX_WIDTH = 28
     SOURCE_MAX_WIDTH = 20
     
-    console.print(f"{'ID':<4} {'预览':<{PREVIEW_MAX_WIDTH}} {'来源':<{SOURCE_MAX_WIDTH}} {'时间':<8}", style="dim")
+    header = f"{_('ID'):<4} {_('Preview'):<{PREVIEW_MAX_WIDTH}} {_('Source'):<{SOURCE_MAX_WIDTH}} {_('Time'):<8}"
+    console.print(header, style="dim")
     console.print("-" * (4 + 1 + PREVIEW_MAX_WIDTH + 1 + SOURCE_MAX_WIDTH + 1 + 8), style="dim")
     
     for entry in entries:
@@ -238,11 +243,12 @@ def print_message(msg: str, style: str = "") -> None:
 def print_devices(devices: List["DeviceInfo"]) -> None:
     """打印在线设备列表"""
     if not devices:
-        console.print("暂无在线设备")
+        console.print(_("No online devices"))
         return
     
     console.print()
-    console.print(f"{'设备名称':<16} {'login_id':<10} {'登录时间':<20}", style="dim")
+    header = f"{_('Device name'):<16} {_('Login ID'):<10} {_('Login time'):<20}"
+    console.print(header, style="dim")
     console.print("-" * 50, style="dim")
     
     for info in devices:
@@ -257,17 +263,18 @@ def print_devices(devices: List["DeviceInfo"]) -> None:
 def print_new_message(entry: "MessageEntry", auto_copied: bool = False) -> None:
     """打印新消息通知 - 单行显示，限制10个全角字符"""
     time_str = entry.time.strftime("%H:%M:%S")
-    status = " [auto]" if auto_copied else ""
+    status = f" [{_('received [auto]').split(' ')[-1]}]" if auto_copied else ""
     source = f"[{entry.device_name}]" if entry.device_name else ""
     preview = _truncate_text(entry.text, 20)
-    print(f"[{time_str}] 收到消息{status} {source}: {preview}")
+    verb = _("received [auto]").split(' ')[0] if auto_copied else _("received").split(' ')[0]
+    print(f"[{time_str}] {verb}{status} {source}: {preview}")
 
 
 def print_help() -> str:
     """打印帮助信息"""
     from rich.text import Text
     
-    console.print("\n[bold green]Local Portal 命令帮助[/bold green]\n")
+    console.print(f"\n[bold green]{_('Local Portal Command Help')}[/bold green]\n")
 
     def print_cmd(cmd: str, desc: str):
         """打印命令行，命令部分带颜色，描述部分普通"""
@@ -276,63 +283,63 @@ def print_help() -> str:
         t.append(desc)
         console.print(t)
 
-    console.print("[bold yellow]基础操作[/bold yellow]")
-    print_cmd("/copy [N]", "复制历史消息（N=1-10，无参=最近一条）")
-    print_cmd("/list (/ls)", "列出最近10条消息摘要")
-    print_cmd("/status", "显示服务运行状态")
-    print_cmd("/open", "在浏览器中打开主页面")
-    print_cmd("/qrcode (/qr)", "显示二维码（扫码连接）")
-    print_cmd("/downloads", "打开下载文件夹")
+    console.print(f"[bold yellow]{_('Basic operations')}[/bold yellow]")
+    print_cmd("/copy [N]", _("Copy history message (N=1-10, no arg = most recent)"))
+    print_cmd("/list (/ls)", _("List last 10 message summaries"))
+    print_cmd("/status", _("Show service runtime status"))
+    print_cmd("/open", _("Open main page in browser"))
+    print_cmd("/qrcode (/qr)", _("Show QR code (scan to connect)"))
+    print_cmd("/downloads", _("Open download folder"))
 
-    console.print("\n[bold yellow]模式与会话[/bold yellow]")
-    print_cmd("/auto [on|off]", "开启/关闭自动复制模式")
-    print_cmd("/mode [cover|add]", "切换复制模式 (cover=覆盖模式, add=追加模式)")
-    print_cmd("/new-session", "追加模式下刷新会话，清空缓冲区")
+    console.print(f"\n[bold yellow]{_('Mode & Session')}[/bold yellow]")
+    print_cmd("/auto [on|off]", _("Enable/disable auto copy mode"))
+    print_cmd("/mode [cover|add]", _("Switch copy mode (cover=overwrite, add=append)"))
+    print_cmd("/new-session", _("Refresh session in append mode, clear buffer"))
 
-    console.print("\n[bold yellow]设备管理[/bold yellow]")
-    print_cmd("/devices", "查看所有已登录设备")
-    print_cmd("/link <name|id>", "进入与指定设备的会话模式")
-    print_cmd("/unlink", "退出设备会话模式")
-    print_cmd("/send <filepath>", "向当前会话设备发送文件（需在 /link 后使用）")
+    console.print(f"\n[bold yellow]{_('Device management')}[/bold yellow]")
+    print_cmd("/devices", _("View all logged-in devices"))
+    print_cmd("/link <name|id>", _("Enter session mode with a specific device"))
+    print_cmd("/unlink", _("Exit device session mode"))
+    print_cmd("/send <filepath>", _("Send a file to current session device (use after /link)"))
 
-    console.print("\n[bold yellow]文本美化[/bold yellow]")
-    print_cmd("/beauty [N]", "使用 LLM 美化第 N 条历史消息（默认最近一条）")
-    print_cmd("/beauty-history", "查看最近 10 次文字美化任务")
-    print_cmd("/beauty-copy [N]", "复制第 N 次美化结果（默认最近一条）")
+    console.print(f"\n[bold yellow]{_('Text beautification')}[/bold yellow]")
+    print_cmd("/beauty [N]", _("Beautify the Nth history message via LLM (default: most recent)"))
+    print_cmd("/beauty-history", _("View last 10 text beautification tasks"))
+    print_cmd("/beauty-copy [N]", _("Copy the Nth beautification result (default: most recent)"))
 
-    console.print("\n[bold yellow]其他[/bold yellow]")
-    print_cmd("/refresh-qrcode (/rq)", "刷新配对码（所有客户端需重新登录）")
-    print_cmd("/help", "显示此帮助信息")
-    print_cmd("/exit", "退出程序")
+    console.print(f"\n[bold yellow]{_('Others')}[/bold yellow]")
+    print_cmd("/refresh-qrcode (/rq)", _("Refresh pairing code (all clients need to re-login)"))
+    print_cmd("/help", _("Show this help"))
+    print_cmd("/exit", _("Exit program"))
 
-    console.print("\n[bold]模式说明:[/bold]")
-    console.print("  [dim]cover (默认)[/dim] - 新消息覆盖上一条，适合单条复制")
-    console.print("  [dim]add[/dim]          - 新消息追加到末尾，适合多条合并")
+    console.print(f"\n[bold]{_('Mode description')}:[/bold]")
+    console.print(f"  [dim]cover ({_('default')})[/dim] - {_('cover (default) - new message overwrites the previous one, good for single copy')}")
+    console.print(f"  [dim]add[/dim]          - {_('add - new message appends to the end, good for merging multiple')}")
 
-    console.print("\n[bold]下载目录设置:[/bold]")
-    console.print("  默认保存到系统下载文件夹，可通过环境变量 [cyan]LPORTAL_DOWNLOAD_DIR[/cyan] 自定义")
-    console.print("\n  [bold]Windows (PowerShell):[/bold]")
+    console.print(f"\n[bold]{_('Download directory settings')}:[/bold]")
+    console.print(f"  {_('Default save to system download folder, customize via')} [cyan]LPORTAL_DOWNLOAD_DIR[/cyan]")
+    console.print(f"\n  [bold]{_('Windows (PowerShell)')}: [/bold]")
     console.print('    [green]$env:LPORTAL_DOWNLOAD_DIR="C:\\Users\\xx\\Downloads"[/green]')
-    console.print("  [bold]Windows (CMD):[/bold]")
+    console.print(f"  [bold]{_('Windows (CMD)')}: [/bold]")
     console.print("    [green]set LPORTAL_DOWNLOAD_DIR=C:\\Users\\xx\\Downloads[/green]")
-    console.print("\n  [bold]macOS / Linux (bash / zsh):[/bold]")
+    console.print(f"\n  [bold]{_('macOS / Linux (bash / zsh)')}: [/bold]")
     console.print("    [green]export LPORTAL_DOWNLOAD_DIR=/Users/xx/Downloads[/green]")
-    console.print("  [bold]永久生效（写入 ~/.bashrc 或 ~/.zshrc）:[/bold]")
+    console.print(f"  [bold]{_('Permanent (append to ~/.bashrc or ~/.zshrc)')}: [/bold]")
     console.print('    [green]echo "export LPORTAL_DOWNLOAD_DIR=/Users/xx/Downloads" >> ~/.zshrc[/green]')
     console.print("    [green]source ~/.zshrc[/green]")
 
-    console.print("\n[bold]LLM 配置（文本美化功能）:[/bold]")
-    console.print("  创建 .env 文件，放在以下任一位置：")
-    console.print("    - 当前工作目录: [cyan]./[/cyan]")
-    console.print("    - Windows: [cyan]%APPDATA%\\localportal\\.env[/cyan]")
-    console.print("    - macOS: [cyan]~/Library/Application Support/localportal/.env[/cyan]")
-    console.print("    - Linux: [cyan]~/.config/localportal/.env[/cyan]")
-    console.print("\n  配置内容：")
+    console.print(f"\n[bold]{_('LLM config (text beautification)')}: [/bold]")
+    console.print(f"  {_('Create .env file in one of the following places')}:")
+    console.print(f"    - {_('Current working directory')}: [cyan]./[/cyan]")
+    console.print(f"    - {_('Windows')}: [cyan]%APPDATA%\\localportal\\.env[/cyan]")
+    console.print(f"    - {_('macOS')}: [cyan]~/Library/Application Support/localportal/.env[/cyan]")
+    console.print(f"    - {_('Linux')}: [cyan]~/.config/localportal/.env[/cyan]")
+    console.print(f"\n  {_('Config content')}:")
     console.print('    [green]OPENAI_BASE_URL=https://api.openai.com/v1[/green]')
     console.print('    [green]OPENAI_API_KEY=sk-xxxxxx[/green]')
     console.print('    [green]OPENAI_MODEL=gpt-3.5-turbo[/green]')
 
-    console.print("\n[bold]自定义提示词:[/bold]")
-    console.print("  在用户配置目录放置 [cyan]text-beauty.md[/cyan] 文件可覆盖默认提示词")
+    console.print(f"\n[bold]{_('Custom prompt')}:[/bold]")
+    console.print(f"  {_('Place text-beauty.md in user config dir to override default prompt')}")
     console.print()
     return ""

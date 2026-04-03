@@ -10,13 +10,14 @@ from prompt_toolkit.patch_stdout import patch_stdout
 
 from .commands import CommandHandler
 from .config import ServerConfig
+from .i18n import _, set_locale
 from .qr import get_local_ip, generate_qr_ascii
 from .server import Server
 from .ui import print_banner, print_message, print_new_message
 
 app = typer.Typer(
     add_completion=False,
-    help="Local Portal - 局域网语音输入中转工具"
+    help=_("Local Portal - LAN voice input relay tool")
 )
 
 
@@ -38,7 +39,7 @@ class PortalApp:
         try:
             actual_port = await self.server.start()
         except RuntimeError as e:
-            print_message(f"[ERROR] 启动失败: {e}", style="bold red")
+            print_message(_("[ERROR] Startup failed: {e}").format(e=e), style="bold red")
             return
         
         # 打印横幅和二维码
@@ -47,10 +48,10 @@ class PortalApp:
         # 首次启动显示二维码
         qr_url = self.config.qr_url
         qr_ascii = generate_qr_ascii(qr_url)
-        print_message("手机扫描二维码连接：")
+        print_message(_("Scan QR code with phone to connect"))
         print_message(qr_ascii)
-        print_message(f"配对码: {self.config.pairing_code}")
-        print_message(f"地址: {qr_url}")
+        print_message(f"{_('Pairing code')}: {self.config.pairing_code}")
+        print_message(f"{_('Address')}: {qr_url}")
         print_message("")
         
         # 设置信号处理（禁用 Ctrl+C 退出，保留复制功能）
@@ -84,7 +85,7 @@ class PortalApp:
                             time_str = datetime.now().strftime("%H:%M:%S")
                             print_message(f"[{time_str}] -> {self.linked_device_name}: {entry.preview[:30]}...")
                         else:
-                            print_message("[!] 发送失败，设备可能已离线")
+                            print_message(_("Failed to send, device may be offline"))
                         continue
                     
                     result = await self.cmd_handler.handle(cmd)
@@ -95,10 +96,10 @@ class PortalApp:
                     break
                 except KeyboardInterrupt:
                     # Ctrl+C 已禁用退出，保留用于复制
-                    print_message("[提示] Ctrl+C 已禁用退出，使用 /exit 退出程序")
+                    print_message(_("[Hint] Ctrl+C is disabled for exit, use /exit to quit"))
                     continue
                 except Exception as e:
-                    print_message(f"[ERROR] 错误: {e}", style="red")
+                    print_message(_("[ERROR] Error: {e}").format(e=e), style="red")
         
         finally:
             await self.shutdown()
@@ -124,14 +125,14 @@ class PortalApp:
                     print_new_message(entry, auto_copied)
                 
                 elif msg["type"] == "clipboard_error":
-                    error = msg.get("error", "未知错误")
-                    print_message(f"[WARN] 剪贴板错误: {error}")
+                    error = msg.get("error", _("Unknown error"))
+                    print_message(f"[WARN] {_('Clipboard error')}: {error}")
                 
                 elif msg["type"] == "file_received":
                     from datetime import datetime
                     path = msg.get("path", "")
                     time_str = datetime.now().strftime("%H:%M:%S")
-                    print_message(f"[{time_str}] 收到文件 [已保存]: {path}")
+                    print_message(f"[{time_str}] {_('File received')}: {path}")
                 
                 elif msg["type"] == "server_message_sent":
                     # 已在发送时打印，这里不再重复显示
@@ -142,24 +143,33 @@ class PortalApp:
     
     async def shutdown(self) -> None:
         """强制关闭服务"""
-        print_message("正在关闭服务...")
+        print_message(_("Closing service..."))
         # 发送退出信号给消息处理任务
         await self.server.terminal_queue.put(None)
         await self.server.stop(force=True)
-        print_message("服务已关闭")
+        print_message(_("Service closed"))
 
 
 @app.command()
 def run(
-    port: int = typer.Option(14554, "--port", "-p", help="服务端口"),
-    auto_copy: bool = typer.Option(True, "--auto-copy/--no-auto-copy", help="自动复制模式"),
-    max_history: int = typer.Option(10, "--max-history", help="最大历史条数"),
+    port: int = typer.Option(14554, "--port", "-p", help="Service port"),
+    auto_copy: bool = typer.Option(True, "--auto-copy/--no-auto-copy", help="Auto copy mode"),
+    max_history: int = typer.Option(10, "--max-history", help="Max history entries"),
+    zh: bool = typer.Option(False, "--zh", help="Force Chinese language"),
+    en: bool = typer.Option(False, "--en", help="Force English language"),
 ) -> None:
     """
     启动 Local Portal 服务
     
     手机语音输入 -> 电脑剪贴板实时同步
     """
+    # 设置语言（命令行参数优先）
+    if zh:
+        set_locale("zh")
+    elif en:
+        set_locale("en")
+    # 否则保持自动检测
+    
     # 创建配置
     config = ServerConfig(
         port=port,

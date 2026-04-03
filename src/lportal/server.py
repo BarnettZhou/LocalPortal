@@ -15,6 +15,7 @@ from aiohttp import web
 from .config import ServerConfig
 from .file_transfer import get_file_transfer_manager
 from .history import History, MessageEntry
+from .i18n import _
 from .qr import generate_qr_html, generate_qr_png, get_local_ip
 
 
@@ -61,7 +62,7 @@ class Server:
         index_file = static_dir / "index.html"
         if index_file.exists():
             return web.FileResponse(index_file)
-        return web.Response(text="index.html not found", status=404)
+        return web.Response(text=_("index.html not found"), status=404)
     
     async def handle_qr_page(self, request: web.Request) -> web.Response:
         """二维码页面 - 带配对码"""
@@ -129,18 +130,18 @@ class Server:
                     if data.get("type") == "auth":
                         code = data.get("code", "")
                         if code != self.config.pairing_code:
-                            await ws.send_json({"type": "auth_failed", "message": "配对码错误"})
+                            await ws.send_json({"type": "auth_failed", "message": _("Incorrect pairing code")})
                             continue
                         await ws.send_json({"type": "auth_success"})
                         authenticated = True
                         break
                     else:
-                        await ws.send_json({"type": "auth_failed", "message": "请先发送配对码"})
+                        await ws.send_json({"type": "auth_failed", "message": _("Please send pairing code first")})
                         continue
                 else:
                     continue
             except asyncio.TimeoutError:
-                await ws.send_json({"type": "auth_failed", "message": "连接超时，请重新输入配对码"})
+                await ws.send_json({"type": "auth_failed", "message": _("Connection timed out, please re-enter pairing code")})
                 continue
             except json.JSONDecodeError:
                 continue
@@ -160,13 +161,13 @@ class Server:
                     if data.get("type") == "register":
                         device_name = data.get("device_name", "").strip()
                         if not device_name:
-                            await ws.send_json({"type": "register_failed", "message": "设备名称不能为空"})
+                            await ws.send_json({"type": "register_failed", "message": _("Device name cannot be empty")})
                             continue
                         
                         # 检查是否有同名设备在线
                         online_names = self._get_online_device_names()
                         if device_name in online_names:
-                            await ws.send_json({"type": "register_failed", "message": f"设备名称 '{device_name}' 已被使用"})
+                            await ws.send_json({"type": "register_failed", "message": _("Device name '{name}' is already in use").format(name=device_name)})
                             continue
                         
                         # 复用或生成 login_id
@@ -195,12 +196,12 @@ class Server:
                         registered = True
                         break
                     else:
-                        await ws.send_json({"type": "register_failed", "message": "请先发送设备注册信息"})
+                        await ws.send_json({"type": "register_failed", "message": _("Please send device registration info first")})
                         continue
                 else:
                     continue
             except asyncio.TimeoutError:
-                await ws.send_json({"type": "register_failed", "message": "注册超时，请重新连接"})
+                await ws.send_json({"type": "register_failed", "message": _("Registration timed out, please reconnect")})
                 continue
             except json.JSONDecodeError:
                 continue
@@ -418,7 +419,7 @@ class Server:
         session_id = -self.config.history._counter - 1
         entry = self.config.history.add(
             text, session_id,
-            device_name="服务端",
+            device_name=_("Server"),
             login_id="server",
             target_login_id=target_login_id
         )
@@ -545,7 +546,7 @@ class Server:
                 self.config.new_session()
                 await sender.send_json({
                     "type": "session_reset",
-                    "message": "会话已刷新"
+                    "message": _("Session refreshed")
                 })
         elif command == "set_mode":
             mode = data.get("mode", "")
@@ -559,7 +560,7 @@ class Server:
                 await self.broadcast({
                     "type": "mode_changed",
                     "mode": mode,
-                    "message": f"已切换到{'追加' if mode == 'add' else '覆盖'}模式"
+                    "message": _("Switched to append mode") if mode == "add" else _("Switched to cover mode")
                 })
     
     async def start(self) -> int:
@@ -580,14 +581,14 @@ class Server:
                 if attempt < max_attempts - 1:
                     port += 1
                 else:
-                    raise RuntimeError(f"无法绑定端口 {self.config.port}-{port}")
+                    raise RuntimeError(_("Could not bind port {start}-{end}").format(start=self.config.port, end=port))
         
         return port
     
     async def stop(self, force: bool = True) -> None:
         """停止服务器"""
         if self.verified_clients:
-            close_msg = {"type": "server_close", "message": "服务已关闭"}
+            close_msg = {"type": "server_close", "message": _("Service closed")}
             await asyncio.gather(
                 *[client.send_json(close_msg) for client in self.verified_clients if not client.closed],
                 return_exceptions=True
