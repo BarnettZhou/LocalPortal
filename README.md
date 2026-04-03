@@ -27,28 +27,27 @@ Use Cases:
 
 ## Installation
 
-### Option 1: Global Install with uv (Recommended for Daily Use)
-
-Install globally using uv's tool mode, then run `lportal` directly:
+### Recommended: Install from PyPI
 
 ```bash
-# Install from local path
-uv tool install -e .
-
-# Or install from PyPI (after release)
-uv tool install localportal
+pip install localportal
 ```
 
-After installation, make sure `%APPDATA%\Python\Scripts` is in your PATH, then run:
+Then run:
 
 ```bash
 lportal
 ```
 
-**Highlights**:
-- Dependencies are isolated in `%APPDATA%\uv\tools\lportal\`
-- Available globally without entering the project directory
-- Independent runtime after installation; no need for uv afterwards
+### Alternative: Global Install with uv
+
+If you use [uv](https://docs.astral.sh/uv/), you can also install globally as a tool:
+
+```bash
+uv tool install localportal
+```
+
+`uv tool` installs the package into an isolated environment (e.g. `%APPDATA%\uv\tools\lportal\` on Windows, `~/.local/share/uv/tools/lportal/` on Linux/macOS) and creates an executable in your user's script directory, so it won't pollute your system Python.
 
 **Upgrade / Uninstall**:
 ```bash
@@ -56,25 +55,17 @@ uv tool upgrade localportal   # upgrade
 uv tool uninstall localportal # uninstall
 ```
 
-### Option 2: Local Run with uv (Development & Debugging)
+### Development
 
-Run inside the project directory using a virtual environment:
+If you want to run from source or contribute:
 
+**With uv**:
 ```bash
 uv sync        # install dependencies
 uv run lportal # run
 ```
 
-**Highlights**:
-- Dependencies are installed in the project's `.venv` directory
-- Ideal for development and debugging
-- Must be run inside the project directory
-
-### Option 3: pip Install (No uv Required)
-
-If you prefer not to use uv, you can use Python and pip alone:
-
-**Local Development Install (Editable Mode)**:
+**With pip (editable)**:
 ```bash
 # Create virtual environment (recommended)
 python -m venv .venv
@@ -85,34 +76,19 @@ python -m venv .venv
 # Linux/Mac:
 source .venv/bin/activate
 
-# Install dependencies and package
+# Install in editable mode
 pip install -e .
 
 # Run
 lportal
 ```
 
-**Install from PyPI (after release)**:
+**Build & install a local wheel**:
 ```bash
-pip install localportal
-
-# Run
-lportal
-```
-
-**Local Wheel Build & Install**:
-```bash
-# Build wheel package
 python -m build
-
-# Install the generated wheel
-pip install dist/localportal-0.1.0-py3-none-any.whl
-
-# Run
+pip install dist/localportal-*.whl
 lportal
 ```
-
-**Note**: pip installation does not automatically manage virtual environments like `uv tool` does. It is recommended to create a virtual environment manually to avoid dependency conflicts.
 
 ## Usage
 

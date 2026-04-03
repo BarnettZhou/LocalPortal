@@ -25,54 +25,45 @@
 
 ## 安装
 
-### 方式一：uv 全局安装（推荐日常使用）
-
-使用 uv 工具模式全局安装，安装后可直接运行 `lportal`：
+### 推荐方式：通过 PyPI 安装
 
 ```bash
-# 从本地路径全局安装
-uv tool install -e .
-
-# 或从 PyPI 安装（发布后）
-uv tool install localportal
+pip install localportal
 ```
 
-安装完成后，确保 `%APPDATA%\Python\Scripts` 在你的 PATH 环境变量中，然后直接运行：
+安装完成后直接运行：
 
 ```bash
 lportal
 ```
 
-**特点**：
-- 依赖隔离在 `%APPDATA%\uv\tools\lportal\` 目录
-- 全局可用，无需进入项目目录
-- 不依赖 uv 运行时，安装后可独立运行
+### 替代方式：使用 uv 全局安装
 
-**更新/卸载**：
+如果你使用 [uv](https://docs.astral.sh/uv/)，也可以通过工具模式全局安装：
+
+```bash
+uv tool install localportal
+```
+
+`uv tool` 会将包安装到一个独立的隔离环境中（Windows 下为 `%APPDATA%\uv\tools\lportal\`，Linux/macOS 下为 `~/.local/share/uv/tools/lportal/`），并在用户脚本目录创建可执行文件入口，不会污染系统 Python。
+
+**更新 / 卸载**：
 ```bash
 uv tool upgrade localportal   # 更新
 uv tool uninstall localportal # 卸载
 ```
 
-### 方式二：uv 本地运行（开发调试）
+### 开发安装
 
-在项目目录下使用虚拟环境运行：
+如果你想从源码运行或参与开发：
 
+**使用 uv**：
 ```bash
 uv sync        # 安装依赖
 uv run lportal # 运行
 ```
 
-**特点**：
-- 依赖安装在项目 `.venv` 目录
-- 适合开发调试
-- 需要进入项目目录才能运行
-
-### 方式三：pip 安装（无需 uv）
-
-如果你不想使用 uv，可以只用 Python 和 pip：
-
-**本地开发安装（可编辑模式）**：
+**使用 pip（可编辑模式）**：
 ```bash
 # 创建虚拟环境（推荐）
 python -m venv .venv
@@ -83,16 +74,8 @@ python -m venv .venv
 # Linux/Mac:
 source .venv/bin/activate
 
-# 安装依赖和包
+# 可编辑模式安装
 pip install -e .
-
-# 运行
-lportal
-```
-
-**从 PyPI 安装（发布后）**：
-```bash
-pip install localportal
 
 # 运行
 lportal
@@ -100,17 +83,10 @@ lportal
 
 **本地构建 wheel 安装**：
 ```bash
-# 构建 wheel 包
 python -m build
-
-# 安装生成的 wheel
-pip install dist/localportal-0.1.0-py3-none-any.whl
-
-# 运行
+pip install dist/localportal-*.whl
 lportal
 ```
-
-**注意**：pip 安装不会像 uv tool 那样自动管理虚拟环境，建议手动创建虚拟环境避免依赖冲突。
 
 ## 使用
 
