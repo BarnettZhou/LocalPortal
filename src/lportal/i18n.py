@@ -114,6 +114,8 @@ _EN = {
     "Place text-beauty.md in user config dir to override default prompt": "Place text-beauty.md in user config dir to override default prompt",
     # main.py
     "Local Portal - LAN voice input relay tool": "Local Portal - LAN voice input relay tool",
+    "Another instance is already running": "Another instance is already running",
+    "Please stop the existing service first, or use /exit to quit": "Please stop the existing service first, or use /exit to quit",
     "Start Local Portal service": "Start Local Portal service",
     "Phone voice input -> PC clipboard real-time sync": "Phone voice input -> PC clipboard real-time sync",
     "[ERROR] Startup failed": "[ERROR] Startup failed",
@@ -294,6 +296,8 @@ _ZH = {
     "Place text-beauty.md in user config dir to override default prompt": "在用户配置目录放置 text-beauty.md 文件可覆盖默认提示词",
     # main.py
     "Local Portal - LAN voice input relay tool": "Local Portal - 局域网语音输入中转工具",
+    "Another instance is already running": "已有同名进程正在运行",
+    "Please stop the existing service first, or use /exit to quit": "请先停止已有的服务，或使用 /exit 退出",
     "Start Local Portal service": "启动 Local Portal 服务",
     "Phone voice input -> PC clipboard real-time sync": "手机语音输入 -> 电脑剪贴板实时同步",
     "[ERROR] Startup failed": "[ERROR] 启动失败",

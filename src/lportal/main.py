@@ -1,7 +1,10 @@
 """CLI 入口"""
 
 import asyncio
+import os
 import signal
+import subprocess
+import sys
 from typing import Optional
 
 import typer
@@ -14,6 +17,73 @@ from .i18n import _, set_locale
 from .qr import get_local_ip, generate_qr_ascii
 from .server import Server
 from .ui import print_banner, print_message, print_new_message
+
+
+def check_existing_process() -> bool:
+    """检查是否已有同名进程在运行
+    
+    Returns:
+        True: 已有进程在运行
+        False: 没有检测到运行中的进程
+    """
+    current_pid = os.getpid()
+    
+    # 根据操作系统使用不同命令
+    if sys.platform == 'darwin':  # macOS
+        try:
+            result = subprocess.run(
+                ['pgrep', '-f', 'lportal'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                pids = [int(p.strip()) for p in result.stdout.strip().split('\n') if p.strip()]
+                # 排除当前进程
+                other_pids = [p for p in pids if p != current_pid]
+                return len(other_pids) > 0
+        except Exception:
+            pass
+    elif sys.platform == 'linux':
+        try:
+            result = subprocess.run(
+                ['pgrep', '-f', 'lportal'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                pids = [int(p.strip()) for p in result.stdout.strip().split('\n') if p.strip()]
+                other_pids = [p for p in pids if p != current_pid]
+                return len(other_pids) > 0
+        except Exception:
+            pass
+    elif sys.platform == 'win32':  # Windows
+        try:
+            result = subprocess.run(
+                ['wmic', 'process', 'where', 'name="python.exe"', 'get', 'ProcessId,CommandLine'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                count = 0
+                for line in lines:
+                    if 'lportal' in line.lower():
+                        parts = line.strip().split()
+                        if parts:
+                            try:
+                                pid = int(parts[-1])
+                                if pid != current_pid:
+                                    count += 1
+                            except ValueError:
+                                continue
+                return count > 0
+        except Exception:
+            pass
+    
+    return False
 
 app = typer.Typer(
     add_completion=False,
@@ -169,6 +239,12 @@ def run(
     elif en:
         set_locale("en")
     # 否则保持自动检测
+    
+    # 检查是否已有同名进程在运行
+    if check_existing_process():
+        print_message(_("Another instance is already running"), style="bold red")
+        print_message(_("Please stop the existing service first, or use /exit to quit"))
+        sys.exit(1)
     
     # 创建配置
     config = ServerConfig(
