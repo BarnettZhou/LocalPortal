@@ -12,7 +12,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from .commands import CommandHandler
-from .config import ServerConfig
+from .config import ServerConfig, validate_pairing_code
 from .i18n import _, set_locale
 from .qr import get_local_ip, generate_qr_ascii
 from .server import Server
@@ -225,6 +225,7 @@ def run(
     port: int = typer.Option(14554, "--port", "-p", help="Service port"),
     auto_copy: bool = typer.Option(True, "--auto-copy/--no-auto-copy", help="Auto copy mode"),
     max_history: int = typer.Option(10, "--max-history", help="Max history entries"),
+    code: str = typer.Option(None, "--code", "-c", help="Custom 4-digit pairing code"),
     zh: bool = typer.Option(False, "--zh", help="Force Chinese language"),
     en: bool = typer.Option(False, "--en", help="Force English language"),
 ) -> None:
@@ -246,11 +247,19 @@ def run(
         print_message(_("Please stop the existing service first, or use /exit to quit"))
         sys.exit(1)
     
+    # 验证自定义配对码
+    if code is not None:
+        if not validate_pairing_code(code):
+            print_message(_("Invalid pairing code: {code}").format(code=code), style="bold red")
+            print_message(_("Pairing code must be 4 digits"))
+            sys.exit(1)
+    
     # 创建配置
     config = ServerConfig(
         port=port,
         auto_copy=auto_copy,
-        max_history=max_history
+        max_history=max_history,
+        pairing_code=code
     )
     
     # 运行应用

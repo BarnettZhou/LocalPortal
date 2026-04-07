@@ -13,6 +13,23 @@ def generate_pairing_code() -> str:
     return f"{random.randint(0, 9999):04d}"
 
 
+def validate_pairing_code(code: str) -> bool:
+    """验证配对码是否为4位数字
+    
+    Args:
+        code: 待验证的配对码
+        
+    Returns:
+        True: 合法（4位数字）
+        False: 不合法
+    """
+    if not code:
+        return False
+    if len(code) != 4:
+        return False
+    return code.isdigit()
+
+
 class ServerConfig:
     """服务器配置和运行时状态"""
     
@@ -21,7 +38,8 @@ class ServerConfig:
         auto_copy: bool = True,
         port: int = 14554,
         max_history: int = 10,
-        host: str = "0.0.0.0"
+        host: str = "0.0.0.0",
+        pairing_code: str | None = None
     ):
         self.auto_copy = auto_copy
         self.port = port
@@ -31,7 +49,8 @@ class ServerConfig:
         self.connected_clients: set = set()
         self._history = History(self.max_history)
         self._beauty_history = BeautyHistory(10)
-        self.pairing_code: str = generate_pairing_code()
+        # 使用指定的配对码或生成随机码
+        self.pairing_code: str = pairing_code if pairing_code else generate_pairing_code()
         
         # 复制模式: 'cover' (覆盖模式, 默认) 或 'add' (追加模式)
         self.copy_mode: str = 'cover'
